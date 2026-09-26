@@ -224,7 +224,7 @@ jobs:
   build-unsigned:
     name: Build unsigned IPA
     needs: inspect-source
-    if: ${{ inputs.build_mode == 'unsigned' && (needs.inspect-source.outputs.project_type == 'xcode' || needs.inspect-source.outputs.project_type == 'capacitor') }}
+    if: ${{ inputs.build_mode == 'unsigned' }}
     runs-on: macos-latest
     outputs:
       ipa_name: ${{ steps.package.outputs.ipa_name }}
@@ -238,10 +238,21 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node.js
-        if: ${{ needs.inspect-source.outputs.project_type == 'capacitor' }}
+        if: ${{ needs.inspect-source.outputs.project_type == 'capacitor' || needs.inspect-source.outputs.project_type == 'react-native' }}
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: ${{ needs.inspect-source.outputs.project_type == 'capacitor' && '22' || '20' }}
+
+      - name: Install Flutter SDK
+        if: ${{ needs.inspect-source.outputs.project_type == 'flutter' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          FLUTTER_DIR="$RUNNER_TEMP/flutter"
+          rm -rf "$FLUTTER_DIR"
+          git clone --quiet --depth=1 --branch stable https://github.com/flutter/flutter.git "$FLUTTER_DIR"
+          echo "$FLUTTER_DIR/bin" >> "$GITHUB_PATH"
+          "$FLUTTER_DIR/bin/flutter" --version
 
       - name: Fetch application source
         shell: bash
@@ -336,17 +347,6 @@ jobs:
             echo ""
             echo "> The IPA is intentionally not uploaded to GitHub Actions storage yet."
           } >> "$GITHUB_STEP_SUMMARY"
-
-  unsupported-unsigned-project:
-    name: Unsupported unsigned project
-    needs: inspect-source
-    if: ${{ inputs.build_mode == 'unsigned' && (needs.inspect-source.outputs.project_type == 'flutter' || needs.inspect-source.outputs.project_type == 'react-native') }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Not enabled yet
-        run: |
-          echo "::error::Unsigned Flutter and React Native support will be added in the next builder stage."
-          exit 70
 
   app-store-not-ready:
     name: App Store mode not enabled yet
