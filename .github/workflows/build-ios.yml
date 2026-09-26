@@ -123,8 +123,242 @@ jobs:
         run: |
           set -euo pipefail
           WORKFLOW=".github/workflows/build-ios.yml"
-          if grep -Eiq 'runs-on:.*(large|xlarge|self-hosted|runner-group)' "$WORKFLOW"; then
-            echo "::error::Only standard GitHub-hosted runners are allowed."
+          INVALID="$(grep -En '^[[:space:]]{4}runs-on:' "$WORKFLOW" | grep -Ev 'runs-on:[[:space:]]*(ubuntu-latest|macos-latest)[[:space:]]*
+      - name: Builder status
+        run: echo "Request validated. Unsigned Xcode/Capacitor builds are enabled."
+
+  inspect-source:
+    name: Inspect source
+    needs: validate-request
+    runs-on: ubuntu-latest
+    outputs:
+      project_type: ${{ steps.detect.outputs.project_type }}
+      detected_type: ${{ steps.detect.outputs.detected_type }}
+      project_root: ${{ steps.detect.outputs.project_root }}
+      marker: ${{ steps.detect.outputs.marker }}
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v4
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Fetch application source
+        shell: bash
+        env:
+          SOURCE_REPO: ${{ inputs.source_repo }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          rm -rf source
+          git init -q source
+          git -C source remote add origin "https://github.com/$SOURCE_REPO.git"
+
+          if [[ -n "$SOURCE_TOKEN" ]]; then
+            ASKPASS="$RUNNER_TEMP/ios-builder-git-askpass.sh"
+            cat > "$ASKPASS" <<'EOF'
+          #!/usr/bin/env bash
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *Password*) printf '%s\n' "$SOURCE_TOKEN" ;;
+            *) printf '\n' ;;
+          esac
+          EOF
+            chmod 700 "$ASKPASS"
+            export GIT_ASKPASS="$ASKPASS"
+            export GIT_TERMINAL_PROMPT=0
+          fi
+
+          if ! git -C source fetch --quiet --depth=1 origin "$SOURCE_REF"; then
+            echo "::error::Unable to fetch $SOURCE_REPO at ref $SOURCE_REF."
+            echo "::error::For a private repository, add a fine-grained read-only token as the SOURCE_TOKEN repository secret."
+            exit 30
+          fi
+
+          git -C source checkout --quiet --detach FETCH_HEAD
+          git -C source remote remove origin
+          rm -f "${ASKPASS:-}"
+
+          echo "Source fetched successfully."
+
+      - name: Detect project type
+        id: detect
+        shell: bash
+        env:
+          REQUESTED_TYPE: ${{ inputs.project_type }}
+        run: bash builder/scripts/detect-project.sh source "$REQUESTED_TYPE"
+
+      - name: Source summary
+        shell: bash
+        env:
+          SOURCE_REPO: ${{ inputs.source_repo }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          REQUESTED_TYPE: ${{ inputs.project_type }}
+          PROJECT_TYPE: ${{ steps.detect.outputs.project_type }}
+          DETECTED_TYPE: ${{ steps.detect.outputs.detected_type }}
+          PROJECT_ROOT: ${{ steps.detect.outputs.project_root }}
+          MARKER: ${{ steps.detect.outputs.marker }}
+        run: |
+          {
+            echo "## Source inspection"
+            echo ""
+            echo "| Setting | Value |"
+            echo "| --- | --- |"
+            echo "| Source | `$SOURCE_REPO` |"
+            echo "| Ref | `$SOURCE_REF` |"
+            echo "| Requested type | `$REQUESTED_TYPE` |"
+            echo "| Detected type | `$DETECTED_TYPE` |"
+            echo "| Build type | `$PROJECT_TYPE` |"
+            echo "| Project root | `$PROJECT_ROOT` |"
+            echo "| Marker | `${MARKER:-none}` |"
+            echo ""
+            echo "> Source code was inspected only. No project build commands were executed."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build-unsigned:
+    name: Build unsigned IPA
+    needs: inspect-source
+    if: ${{ inputs.build_mode == 'unsigned' }}
+    runs-on: macos-latest
+    outputs:
+      ipa_name: ${{ steps.package.outputs.ipa_name }}
+      ipa_sha256: ${{ steps.package.outputs.ipa_sha256 }}
+      ipa_size: ${{ steps.package.outputs.ipa_size }}
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v4
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Setup Node.js
+        if: ${{ needs.inspect-source.outputs.project_type == 'capacitor' || needs.inspect-source.outputs.project_type == 'react-native' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ needs.inspect-source.outputs.project_type == 'capacitor' && '22' || '20' }}
+
+      - name: Install Flutter SDK
+        if: ${{ needs.inspect-source.outputs.project_type == 'flutter' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          FLUTTER_DIR="$RUNNER_TEMP/flutter"
+          rm -rf "$FLUTTER_DIR"
+          git clone --quiet --depth=1 --branch stable https://github.com/flutter/flutter.git "$FLUTTER_DIR"
+          echo "$FLUTTER_DIR/bin" >> "$GITHUB_PATH"
+          "$FLUTTER_DIR/bin/flutter" --version
+
+      - name: Fetch application source
+        shell: bash
+        env:
+          SOURCE_REPO: ${{ inputs.source_repo }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          rm -rf source
+          git init -q source
+          git -C source remote add origin "https://github.com/$SOURCE_REPO.git"
+
+          if [[ -n "$SOURCE_TOKEN" ]]; then
+            ASKPASS="$RUNNER_TEMP/ios-builder-git-askpass.sh"
+            cat > "$ASKPASS" <<'EOF'
+          #!/usr/bin/env bash
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *Password*) printf '%s\n' "$SOURCE_TOKEN" ;;
+            *) printf '\n' ;;
+          esac
+          EOF
+            chmod 700 "$ASKPASS"
+            export GIT_ASKPASS="$ASKPASS"
+            export GIT_TERMINAL_PROMPT=0
+          fi
+
+          if ! git -C source fetch --quiet --depth=1 origin "$SOURCE_REF"; then
+            echo "::error::Unable to fetch $SOURCE_REPO at ref $SOURCE_REF."
+            exit 60
+          fi
+
+          git -C source checkout --quiet --detach FETCH_HEAD
+          git -C source remote remove origin
+          rm -f "${ASKPASS:-}"
+          unset SOURCE_TOKEN GIT_ASKPASS GIT_TERMINAL_PROMPT
+
+      - name: Re-check project type
+        id: detect
+        shell: bash
+        env:
+          REQUESTED_TYPE: ${{ inputs.project_type }}
+          EXPECTED_TYPE: ${{ needs.inspect-source.outputs.project_type }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/detect-project.sh source "$REQUESTED_TYPE"
+          ACTUAL_TYPE="$(bash builder/scripts/detect-project.sh source "$REQUESTED_TYPE" | awk -F: '/Build type/{gsub(/[[:space:]]/,"",$2);print $2}')"
+          if [[ "$ACTUAL_TYPE" != "$EXPECTED_TYPE" ]]; then
+            echo "::error::Project type changed between inspection and build."
+            exit 61
+          fi
+
+      - name: Verify standard macOS runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "macOS"
+          echo "Runner: $RUNNER_NAME"
+          echo "Architecture: $RUNNER_ARCH"
+          xcodebuild -version
+
+      - name: Build and package unsigned IPA
+        id: package
+        shell: bash
+        env:
+          PROJECT_TYPE: ${{ needs.inspect-source.outputs.project_type }}
+          PROJECT_ROOT: ${{ needs.inspect-source.outputs.project_root }}
+          SCHEME: ${{ inputs.scheme }}
+          OUTPUT_NAME: ${{ inputs.output_name }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/build-unsigned.sh source "$PROJECT_TYPE" "$PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME"
+
+      - name: Build summary
+        shell: bash
+        env:
+          IPA_NAME: ${{ steps.package.outputs.ipa_name }}
+          IPA_SIZE: ${{ steps.package.outputs.ipa_size }}
+          IPA_SHA256: ${{ steps.package.outputs.ipa_sha256 }}
+        run: |
+          {
+            echo "## Unsigned IPA built"
+            echo ""
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| File | `$IPA_NAME` |"
+            echo "| Size | `$IPA_SIZE` |"
+            echo "| SHA-256 | `$IPA_SHA256` |"
+            echo "| Signing | `unsigned / CODE_SIGNING_ALLOWED=NO` |"
+            echo ""
+            echo "> The IPA is intentionally not uploaded to GitHub Actions storage yet."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  app-store-not-ready:
+    name: App Store mode not enabled yet
+    needs: inspect-source
+    if: ${{ inputs.build_mode == 'app-store' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Signing stage not enabled
+        run: |
+          echo "::error::App Store / TestFlight signing is not enabled yet. No Apple credentials were accessed."
+          exit 71
+
+ || true)"
+          if [[ -n "$INVALID" ]]; then
+            echo "$INVALID"
+            echo "::error::Only ubuntu-latest and macos-latest standard GitHub-hosted runners are allowed."
             exit 40
           fi
 
