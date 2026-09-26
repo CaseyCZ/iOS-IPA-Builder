@@ -38,12 +38,26 @@ rm -rf "$BASE_DIR"
 mkdir -p "$BASE_DIR"
 chmod 700 "$BASE_DIR"
 
-if ! printf '%s' "$APPLE_CERTIFICATE_P12_BASE64" | base64 -d > "$P12_PATH" 2>/dev/null; then
+decode_base64_to_file() {
+  local value="$1"
+  local destination="$2"
+  VALUE="$value" DESTINATION="$destination" python3 - <<'PY'
+import base64, os, sys
+try:
+    data = base64.b64decode(os.environ["VALUE"], validate=True)
+except Exception:
+    sys.exit(1)
+with open(os.environ["DESTINATION"], "wb") as f:
+    f.write(data)
+PY
+}
+
+if ! decode_base64_to_file "$APPLE_CERTIFICATE_P12_BASE64" "$P12_PATH"; then
   echo "::error::APPLE_CERTIFICATE_P12_BASE64 is not valid base64."
   exit 103
 fi
 
-if ! printf '%s' "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 -d > "$PROFILE_RAW" 2>/dev/null; then
+if ! decode_base64_to_file "$APPLE_PROVISIONING_PROFILE_BASE64" "$PROFILE_RAW"; then
   echo "::error::APPLE_PROVISIONING_PROFILE_BASE64 is not valid base64."
   exit 104
 fi
@@ -152,8 +166,9 @@ security set-key-partition-list \
   -S apple-tool:,apple:,codesign: \
   -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null 2>&1
 
-if ! security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -q '1)'; then
-  echo "::error::No valid code-signing identity was found in the temporary keychain."
+IDENTITIES="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH")"
+if ! printf '%s\n' "$IDENTITIES" | grep -Eq '"(Apple Distribution|iPhone Distribution):'; then
+  echo "::error::No Apple Distribution signing identity was found in the temporary keychain."
   exit 109
 fi
 
