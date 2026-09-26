@@ -4,6 +4,7 @@ set -euo pipefail
 IPA_PATH="${1:-}"
 OUTPUT_REPO="${OUTPUT_REPO:-}"
 OUTPUT_TOKEN="${OUTPUT_TOKEN:-}"
+OUTPUT_VISIBILITY="${OUTPUT_VISIBILITY:-private}"
 
 if [[ -z "$IPA_PATH" || ! -f "$IPA_PATH" ]]; then
   echo "::error::IPA file does not exist."
@@ -38,10 +39,24 @@ print("true" if data.get("private") is True else "false")
 PY
 )"
 
-if [[ "$REPO_PRIVATE" != "true" ]]; then
-  echo "::error::The configured output repository is not private. IPA delivery was blocked."
-  exit 83
-fi
+case "$OUTPUT_VISIBILITY" in
+  private)
+    if [[ "$REPO_PRIVATE" != "true" ]]; then
+      echo "::error::Output visibility is set to private, but the configured repository is public."
+      exit 83
+    fi
+    ;;
+  public)
+    if [[ "$REPO_PRIVATE" == "true" ]]; then
+      echo "::error::Output visibility is set to public, but the configured repository is private."
+      exit 83
+    fi
+    ;;
+  *)
+    echo "::error::OUTPUT_VISIBILITY must be private or public."
+    exit 83
+    ;;
+esac
 
 FILE_SIZE="$(stat -f%z "$IPA_PATH")"
 MAX_SIZE=$((2 * 1024 * 1024 * 1024))
@@ -109,6 +124,6 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   } >> "$GITHUB_OUTPUT"
 fi
 
-echo "IPA delivered to the configured private output repository."
+echo "IPA delivered to the configured $OUTPUT_VISIBILITY output repository."
 echo "File: $IPA_NAME"
 echo "SHA-256: $SHA256"
