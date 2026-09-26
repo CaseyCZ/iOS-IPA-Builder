@@ -67,16 +67,22 @@ run_web_build_if_present() {
 
 prepare_capacitor() {
   local dir="$1"
+
+  set_build_stage "Capacitor: install dependencies"
   install_js_dependencies "$dir"
+
+  set_build_stage "Capacitor: web build"
   run_web_build_if_present "$dir"
 
   cd "$dir"
 
   if [[ ! -d ios/App ]]; then
+    set_build_stage "Capacitor: create iOS project"
     echo "No Capacitor iOS project found; creating it."
     npx cap add ios
   fi
 
+  set_build_stage "Capacitor: sync iOS project"
   npx cap sync ios
 
   # Some web projects intentionally keep classic/static assets outside their
@@ -96,8 +102,11 @@ process.stdout.write('dist');
 NODE
 )"
   if [[ -d assets && -d "$web_dir" ]]; then
+    set_build_stage "Capacitor: copy static assets"
     mkdir -p "$web_dir/assets"
     rsync -a --ignore-existing assets/ "$web_dir/assets/"
+
+    set_build_stage "Capacitor: resync iOS project"
     npx cap sync ios
   fi
 }
