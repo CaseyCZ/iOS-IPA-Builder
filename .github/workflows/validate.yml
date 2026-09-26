@@ -35,43 +35,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          INVALID="$(grep -REn '^[ ]{4}runs-on:' .github/workflows | grep -Ev 'runs-on:[ ]*(ubuntu-latest|macos-latest|\$\{\{ inputs\.xcode_runner \}\})[ ]*
 
-      - name: Confirm no Actions artifact or cache storage
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -En 'actions/(upload-artifact|cache)@' .github/workflows/build-ios.yml; then
-            echo "::error::Actions artifact/cache storage is intentionally disabled."
-            exit 1
-          fi
-
-      - name: Block automatic Apple uploads
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if grep -REniE 'iTMSTransporter|altool.*--upload-app|notarytool[[:space:]]+submit' scripts .github/workflows/build-ios.yml; then
-            echo "::error::Automatic Apple upload tooling is intentionally disabled."
-            exit 1
-          fi
-
-          if grep -REniE '"destination"[[:space:]]*:[[:space:]]*"upload"' scripts; then
-            echo "::error::ExportOptions destination must remain export, never upload."
-            exit 1
-          fi
-
-          grep -q '"destination": "export"' scripts/build-app-store.sh
- || true)"
+          # Fixed validation jobs stay on ubuntu-latest. Build jobs may use the
+          # workflow's constrained xcode_runner choice (macos-latest/xcode-27).
+          INVALID="$(grep -REn '^[ ]{4}runs-on:' .github/workflows | grep -v 'runs-on: ubuntu-latest' | grep -v 'runs-on: macos-latest' | grep -Fv 'runs-on: ${{ inputs.xcode_runner }}' || true)"
           if [[ -n "$INVALID" ]]; then
             echo "$INVALID"
-            echo "::error::Only approved standard GitHub-hosted runner selections are allowed."
+            echo "::error::Only approved GitHub-hosted runner selections are allowed."
             exit 1
           fi
 
           grep -q '^      xcode_runner:' .github/workflows/build-ios.yml
           grep -q '^          - macos-latest
-
       - name: Confirm no Actions artifact or cache storage
         shell: bash
         run: |
@@ -99,7 +74,6 @@ jobs:
           grep -q '"destination": "export"' scripts/build-app-store.sh
  .github/workflows/build-ios.yml
           grep -q '^          - xcode-27
-
       - name: Confirm no Actions artifact or cache storage
         shell: bash
         run: |
