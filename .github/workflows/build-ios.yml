@@ -327,7 +327,7 @@ jobs:
           IPA_PATH: ${{ steps.package.outputs.ipa_path }}
         run: |
           set -euo pipefail
-          bash builder/scripts/deliver-private-release.sh "$IPA_PATH"
+          bash builder/scripts/deliver-release.sh "$IPA_PATH"
 
       - name: Build summary
         shell: bash
@@ -503,7 +503,7 @@ jobs:
           IPA_PATH: ${{ steps.package.outputs.ipa_path }}
         run: |
           set -euo pipefail
-          bash builder/scripts/deliver-private-release.sh "$IPA_PATH"
+          bash builder/scripts/deliver-release.sh "$IPA_PATH"
 
       - name: App Store build summary
         if: ${{ success() }}
