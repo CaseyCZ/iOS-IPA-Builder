@@ -2,7 +2,7 @@
 
 Build clean iOS IPA packages with GitHub Actions — without needing a local Mac.
 
-> Status: early development. Clean unsigned IPA builds are enabled for native Xcode and Capacitor projects.
+> Status: early development. Clean unsigned IPA builds are enabled for native Xcode, Capacitor, Flutter and React Native projects.
 
 ## Build modes
 
@@ -18,12 +18,12 @@ Apple certificates, provisioning profiles and App Store Connect credentials will
 
 ## Supported project types
 
-Source inspection currently recognizes:
+Source inspection currently recognizes and can build unsigned IPA packages for:
 
-- Native Xcode — unsigned build enabled
-- Capacitor — unsigned build enabled
-- Flutter — detection enabled, build support next
-- React Native — detection enabled, build support next
+- Native Xcode
+- Capacitor
+- Flutter
+- React Native
 
 `Auto` is the recommended default. It detects common project markers such as `capacitor.config.*`, `pubspec.yaml`, React Native dependencies and Xcode projects/workspaces. A project type can still be selected manually when needed.
 
@@ -51,15 +51,13 @@ Available now:
 - project auto-detection
 - standard macOS runner only
 - one workflow run at a time
-- clean unsigned Release build for native Xcode and Capacitor
+- clean unsigned Release build for native Xcode, Capacitor, Flutter and React Native
 - standard `Payload/App.app` IPA packaging
 - SHA-256 and size reporting
 - no GitHub Actions artifact/cache storage
 
 Next stages:
 
-- Flutter unsigned builds
-- React Native unsigned builds
 - private output delivery
 - App Store / TestFlight signing with the user's own Apple credentials
 
