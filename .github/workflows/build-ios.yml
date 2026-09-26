@@ -274,6 +274,8 @@ jobs:
           set -euo pipefail
           source "$RUNNER_TEMP/request.env"
           source "$RUNNER_TEMP/build.env"
+          export OUTPUT_REPO
+          export OUTPUT_VISIBILITY
           export OUTPUT_TOKEN="${OUTPUT_TOKEN:-${SOURCE_TOKEN:-}}"
 
           if [[ "$LOG_MODE" == "private" ]]; then
@@ -454,6 +456,8 @@ jobs:
           set -euo pipefail
           source "$RUNNER_TEMP/request.env"
           source "$RUNNER_TEMP/build.env"
+          export OUTPUT_REPO
+          export OUTPUT_VISIBILITY
           export OUTPUT_TOKEN="${OUTPUT_TOKEN:-${SOURCE_TOKEN:-}}"
 
           if [[ "$LOG_MODE" == "private" ]]; then
