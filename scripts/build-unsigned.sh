@@ -151,6 +151,8 @@ print(schemes[0])
 PY
 }
 
+BUILT_APP_PATH=""
+
 build_xcode_app() {
   local search_root="$1"
   local derived="$RUNNER_TEMP/ios-ipa-builder-derived"
@@ -195,7 +197,8 @@ build_xcode_app() {
     exit 55
   fi
 
-  printf '%s\n' "$app_path"
+  BUILT_APP_PATH="$app_path"
+  echo "Built app        : $BUILT_APP_PATH"
 }
 
 package_ipa() {
@@ -248,10 +251,15 @@ package_ipa() {
 if [[ "$PROJECT_TYPE" == "capacitor" ]]; then
   prepare_capacitor "$ROOT"
   install_pods_if_needed "$ROOT/ios/App"
-  APP_PATH="$(build_xcode_app "$ROOT/ios")"
+  build_xcode_app "$ROOT/ios"
 else
   install_pods_if_needed "$ROOT"
-  APP_PATH="$(build_xcode_app "$ROOT")"
+  build_xcode_app "$ROOT"
 fi
 
-package_ipa "$APP_PATH"
+if [[ -z "$BUILT_APP_PATH" ]]; then
+  echo "::error::Internal builder error: built app path is empty."
+  exit 58
+fi
+
+package_ipa "$BUILT_APP_PATH"
