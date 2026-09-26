@@ -55,6 +55,11 @@ jobs:
     name: Validate build request
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout builder
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - name: Validate inputs
         shell: bash
         env:
@@ -110,7 +115,7 @@ jobs:
             echo "| Scheme | `${SCHEME:-auto}` |"
             echo "| Output | `${OUTPUT_NAME:-auto}` |"
             echo ""
-            echo "> Build execution is not enabled yet."
+            echo "> Unsigned build execution is enabled for Xcode and Capacitor projects."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Enforce standard-runner policy
@@ -124,7 +129,7 @@ jobs:
           fi
 
       - name: Builder status
-        run: echo "Request validated. Source inspection is enabled; compilation is still disabled."
+        run: echo "Request validated. Unsigned Xcode/Capacitor builds are enabled."
 
   inspect-source:
     name: Inspect source
@@ -215,3 +220,142 @@ jobs:
             echo ""
             echo "> Source code was inspected only. No project build commands were executed."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  build-unsigned:
+    name: Build unsigned IPA
+    needs: inspect-source
+    if: ${{ inputs.build_mode == 'unsigned' && (needs.inspect-source.outputs.project_type == 'xcode' || needs.inspect-source.outputs.project_type == 'capacitor') }}
+    runs-on: macos-latest
+    outputs:
+      ipa_name: ${{ steps.package.outputs.ipa_name }}
+      ipa_sha256: ${{ steps.package.outputs.ipa_sha256 }}
+      ipa_size: ${{ steps.package.outputs.ipa_size }}
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v4
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Setup Node.js
+        if: ${{ needs.inspect-source.outputs.project_type == 'capacitor' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Fetch application source
+        shell: bash
+        env:
+          SOURCE_REPO: ${{ inputs.source_repo }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          rm -rf source
+          git init -q source
+          git -C source remote add origin "https://github.com/$SOURCE_REPO.git"
+
+          if [[ -n "$SOURCE_TOKEN" ]]; then
+            ASKPASS="$RUNNER_TEMP/ios-builder-git-askpass.sh"
+            cat > "$ASKPASS" <<'EOF'
+          #!/usr/bin/env bash
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *Password*) printf '%s\n' "$SOURCE_TOKEN" ;;
+            *) printf '\n' ;;
+          esac
+          EOF
+            chmod 700 "$ASKPASS"
+            export GIT_ASKPASS="$ASKPASS"
+            export GIT_TERMINAL_PROMPT=0
+          fi
+
+          if ! git -C source fetch --quiet --depth=1 origin "$SOURCE_REF"; then
+            echo "::error::Unable to fetch $SOURCE_REPO at ref $SOURCE_REF."
+            exit 60
+          fi
+
+          git -C source checkout --quiet --detach FETCH_HEAD
+          git -C source remote remove origin
+          rm -f "${ASKPASS:-}"
+          unset SOURCE_TOKEN GIT_ASKPASS GIT_TERMINAL_PROMPT
+
+      - name: Re-check project type
+        id: detect
+        shell: bash
+        env:
+          REQUESTED_TYPE: ${{ inputs.project_type }}
+          EXPECTED_TYPE: ${{ needs.inspect-source.outputs.project_type }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/detect-project.sh source "$REQUESTED_TYPE"
+          ACTUAL_TYPE="$(bash builder/scripts/detect-project.sh source "$REQUESTED_TYPE" | awk -F: '/Build type/{gsub(/[[:space:]]/,"",$2);print $2}')"
+          if [[ "$ACTUAL_TYPE" != "$EXPECTED_TYPE" ]]; then
+            echo "::error::Project type changed between inspection and build."
+            exit 61
+          fi
+
+      - name: Verify standard macOS runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "macOS"
+          echo "Runner: $RUNNER_NAME"
+          echo "Architecture: $RUNNER_ARCH"
+          xcodebuild -version
+
+      - name: Build and package unsigned IPA
+        id: package
+        shell: bash
+        env:
+          PROJECT_TYPE: ${{ needs.inspect-source.outputs.project_type }}
+          PROJECT_ROOT: ${{ needs.inspect-source.outputs.project_root }}
+          SCHEME: ${{ inputs.scheme }}
+          OUTPUT_NAME: ${{ inputs.output_name }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/build-unsigned.sh source "$PROJECT_TYPE" "$PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME"
+
+      - name: Build summary
+        shell: bash
+        env:
+          IPA_NAME: ${{ steps.package.outputs.ipa_name }}
+          IPA_SIZE: ${{ steps.package.outputs.ipa_size }}
+          IPA_SHA256: ${{ steps.package.outputs.ipa_sha256 }}
+        run: |
+          {
+            echo "## Unsigned IPA built"
+            echo ""
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| File | `$IPA_NAME` |"
+            echo "| Size | `$IPA_SIZE` |"
+            echo "| SHA-256 | `$IPA_SHA256` |"
+            echo "| Signing | `unsigned / CODE_SIGNING_ALLOWED=NO` |"
+            echo ""
+            echo "> The IPA is intentionally not uploaded to GitHub Actions storage yet."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  unsupported-unsigned-project:
+    name: Unsupported unsigned project
+    needs: inspect-source
+    if: ${{ inputs.build_mode == 'unsigned' && (needs.inspect-source.outputs.project_type == 'flutter' || needs.inspect-source.outputs.project_type == 'react-native') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Not enabled yet
+        run: |
+          echo "::error::Unsigned Flutter and React Native support will be added in the next builder stage."
+          exit 70
+
+  app-store-not-ready:
+    name: App Store mode not enabled yet
+    needs: inspect-source
+    if: ${{ inputs.build_mode == 'app-store' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Signing stage not enabled
+        run: |
+          echo "::error::App Store / TestFlight signing is not enabled yet. No Apple credentials were accessed."
+          exit 71
+
