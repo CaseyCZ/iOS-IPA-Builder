@@ -198,7 +198,4 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   } >> "$GITHUB_OUTPUT"
 fi
 
-echo "Temporary Apple signing environment installed."
-echo "Provisioning profile: $PROFILE_NAME"
-echo "Profile expires: $PROFILE_EXPIRES"
-echo "Certificate/profile match: verified"
+echo "Temporary Apple signing environment installed and verified."
