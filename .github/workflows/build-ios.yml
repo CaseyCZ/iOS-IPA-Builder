@@ -352,17 +352,103 @@ jobs:
             echo "> No IPA was stored as a public Actions artifact."
           } >> "$GITHUB_STEP_SUMMARY"
 
-  prepare-app-store-signing:
-    name: Prepare App Store signing
+  build-app-store:
+    name: Build App Store IPA
     needs: inspect-source
     if: ${{ inputs.build_mode == 'app-store' }}
     runs-on: macos-latest
+    outputs:
+      ipa_name: ${{ steps.package.outputs.ipa_name }}
+      ipa_sha256: ${{ steps.package.outputs.ipa_sha256 }}
+      ipa_size: ${{ steps.package.outputs.ipa_size }}
+      bundle_id: ${{ steps.package.outputs.bundle_id }}
     steps:
       - name: Checkout builder
         uses: actions/checkout@v4
         with:
           path: builder
           persist-credentials: false
+
+      - name: Setup Node.js 22 for Capacitor
+        if: ${{ needs.inspect-source.outputs.project_type == 'capacitor' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Node.js 20 for React Native
+        if: ${{ needs.inspect-source.outputs.project_type == 'react-native' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install official Flutter SDK
+        if: ${{ needs.inspect-source.outputs.project_type == 'flutter' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          FLUTTER_DIR="$RUNNER_TEMP/flutter"
+          rm -rf "$FLUTTER_DIR"
+          git clone --quiet --depth=1 --branch stable https://github.com/flutter/flutter.git "$FLUTTER_DIR"
+          echo "$FLUTTER_DIR/bin" >> "$GITHUB_PATH"
+          "$FLUTTER_DIR/bin/flutter" --version
+
+      - name: Fetch application source
+        shell: bash
+        env:
+          SOURCE_REPO: ${{ inputs.source_repo }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          rm -rf source
+          git init -q source
+          git -C source remote add origin "https://github.com/$SOURCE_REPO.git"
+
+          if [[ -n "$SOURCE_TOKEN" ]]; then
+            ASKPASS="$RUNNER_TEMP/ios-builder-git-askpass.sh"
+            cat > "$ASKPASS" <<'EOF'
+          #!/usr/bin/env bash
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *Password*) printf '%s\n' "$SOURCE_TOKEN" ;;
+            *) printf '\n' ;;
+          esac
+          EOF
+            chmod 700 "$ASKPASS"
+            export GIT_ASKPASS="$ASKPASS"
+            export GIT_TERMINAL_PROMPT=0
+          fi
+
+          if ! git -C source fetch --quiet --depth=1 origin "$SOURCE_REF"; then
+            echo "::error::Unable to fetch $SOURCE_REPO at ref $SOURCE_REF."
+            exit 130
+          fi
+
+          git -C source checkout --quiet --detach FETCH_HEAD
+          git -C source remote remove origin
+          rm -f "${ASKPASS:-}"
+          unset SOURCE_TOKEN GIT_ASKPASS GIT_TERMINAL_PROMPT
+
+      - name: Re-check project type
+        shell: bash
+        env:
+          REQUESTED_TYPE: ${{ inputs.project_type }}
+          EXPECTED_TYPE: ${{ needs.inspect-source.outputs.project_type }}
+        run: |
+          set -euo pipefail
+          ACTUAL_TYPE="$(bash builder/scripts/detect-project.sh source "$REQUESTED_TYPE" | awk -F: '/Build type/{gsub(/[[:space:]]/,"",$2);print $2}')"
+          if [[ "$ACTUAL_TYPE" != "$EXPECTED_TYPE" ]]; then
+            echo "::error::Project type changed between inspection and build."
+            exit 131
+          fi
+
+      - name: Verify standard macOS runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "macOS"
+          xcodebuild -version
 
       - name: Validate signing secrets
         shell: bash
@@ -387,40 +473,66 @@ jobs:
           set -euo pipefail
           bash builder/scripts/install-signing.sh
 
-      - name: Verify signing environment
+      - name: Archive and export signed IPA
+        id: package
         shell: bash
         env:
+          PROJECT_TYPE: ${{ needs.inspect-source.outputs.project_type }}
+          PROJECT_ROOT: ${{ needs.inspect-source.outputs.project_root }}
+          SCHEME: ${{ inputs.scheme }}
+          OUTPUT_NAME: ${{ inputs.output_name }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
-          PROFILE_EXPIRES: ${{ steps.signing.outputs.profile_expires }}
         run: |
           set -euo pipefail
-          echo "Temporary signing keychain is ready."
-          echo "Provisioning profile: $PROFILE_NAME"
-          echo "Profile expires: $PROFILE_EXPIRES"
+          bash builder/scripts/build-app-store.sh source "$PROJECT_TYPE" "$PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME"
 
       - name: Cleanup temporary signing environment
         if: ${{ always() }}
         shell: bash
         run: bash builder/scripts/cleanup-signing.sh
 
-      - name: Signing readiness summary
+      - name: Deliver signed IPA to configured release
+        if: ${{ success() }}
+        id: deliver
+        shell: bash
+        env:
+          OUTPUT_REPO: ${{ secrets.OUTPUT_REPO }}
+          OUTPUT_TOKEN: ${{ secrets.OUTPUT_TOKEN }}
+          OUTPUT_VISIBILITY: ${{ inputs.output_visibility }}
+          IPA_PATH: ${{ steps.package.outputs.ipa_path }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/deliver-private-release.sh "$IPA_PATH"
+
+      - name: App Store build summary
         if: ${{ success() }}
         shell: bash
         env:
+          IPA_NAME: ${{ steps.package.outputs.ipa_name }}
+          IPA_SIZE: ${{ steps.package.outputs.ipa_size }}
+          IPA_SHA256: ${{ steps.package.outputs.ipa_sha256 }}
+          BUNDLE_ID: ${{ steps.package.outputs.bundle_id }}
+          EXPORT_METHOD: ${{ steps.package.outputs.export_method }}
           PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
           PROFILE_EXPIRES: ${{ steps.signing.outputs.profile_expires }}
+          RELEASE_TAG: ${{ steps.deliver.outputs.release_tag }}
         run: |
           {
-            echo "## App Store / TestFlight signing"
-            echo ""
-            echo "Temporary macOS signing environment installed and verified successfully."
+            echo "## App Store / TestFlight IPA built"
             echo ""
             echo "| Item | Value |"
             echo "| --- | --- |"
-            echo "| Profile | `$PROFILE_NAME` |"
-            echo "| Expires | `$PROFILE_EXPIRES` |"
-            echo "| Certificate/profile match | `verified` |"
-            echo "| Cleanup | `completed` |"
+            echo "| File | `$IPA_NAME` |"
+            echo "| Bundle ID | `$BUNDLE_ID` |"
+            echo "| Size | `$IPA_SIZE` |"
+            echo "| SHA-256 | `$IPA_SHA256` |"
+            echo "| Export method | `$EXPORT_METHOD` |"
+            echo "| Provisioning profile | `$PROFILE_NAME` |"
+            echo "| Profile expires | `$PROFILE_EXPIRES` |"
+            echo "| Delivery | `${{ inputs.output_visibility }} GitHub Release` |"
+            echo "| Release tag | `$RELEASE_TAG` |"
             echo ""
-            echo "> Signed archive creation and IPA export are not enabled yet."
+            echo "> The IPA was signed for App Store/TestFlight distribution but was not uploaded to App Store Connect."
           } >> "$GITHUB_STEP_SUMMARY"
+
