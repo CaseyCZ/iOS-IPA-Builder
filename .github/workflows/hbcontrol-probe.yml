@@ -22,6 +22,7 @@ jobs:
           ref: swift-native
           path: source
           persist-credentials: false
+          token: ${{ secrets.SOURCE_TOKEN }}
 
       - name: Verify Xcode
         run: xcodebuild -version
