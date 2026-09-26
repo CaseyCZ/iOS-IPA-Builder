@@ -62,6 +62,15 @@ This repository is public and contains only build infrastructure.
 - No IPA is stored as a GitHub Actions artifact or cache.
 - Build jobs are restricted to standard GitHub-hosted runners; larger/xlarge/custom/self-hosted runner labels are intentionally blocked.
 
+## Private projects
+
+If your source project is private, add these once in the builder repository under **Settings → Secrets and variables → Actions**:
+
+- `SOURCE_TOKEN` — lets the builder read the private project.
+- `OUTPUT_TOKEN` — lets the builder save the finished IPA.
+
+For a public source project, `SOURCE_TOKEN` is not needed.
+
 ## IPA delivery
 
 Choose `Private` or `Public` in the workflow. Private is the default.
@@ -71,10 +80,6 @@ When starting the workflow, enter the destination repository in the `output_repo
 Configure this repository secret in your builder repository or fork:
 
 - `OUTPUT_TOKEN` — fine-grained token with permission to create releases and upload assets in the selected destination repository.
-
-For private application source repositories also configure:
-
-- `SOURCE_TOKEN` — fine-grained read-only token for the source repository.
 
 The output repository must already exist. Each successful build creates a unique prerelease with the IPA attached. If the selected visibility does not match the actual repository visibility, delivery is blocked.
 
