@@ -80,12 +80,10 @@ Available now:
 - clean unsigned Release build for native Xcode, Capacitor, Flutter and React Native
 - standard `Payload/App.app` IPA packaging
 - SHA-256 and size reporting
-- private GitHub Release delivery
+- public or private GitHub Release delivery
 - no GitHub Actions artifact/cache storage
 
-Next stages:
-
-- optional direct upload to App Store Connect / TestFlight
+App Store Connect/TestFlight upload is intentionally manual. The builder stops after producing and delivering the signed IPA.
 
 ## License
 
