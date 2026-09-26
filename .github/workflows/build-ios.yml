@@ -352,11 +352,11 @@ jobs:
             echo "> No IPA was stored as a public Actions artifact."
           } >> "$GITHUB_STEP_SUMMARY"
 
-  validate-app-store-signing:
-    name: Validate App Store signing
+  prepare-app-store-signing:
+    name: Prepare App Store signing
     needs: inspect-source
     if: ${{ inputs.build_mode == 'app-store' }}
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Checkout builder
         uses: actions/checkout@v4
@@ -375,13 +375,52 @@ jobs:
           set -euo pipefail
           bash builder/scripts/validate-signing.sh
 
-      - name: Signing readiness summary
+      - name: Install temporary signing environment
+        id: signing
         shell: bash
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/install-signing.sh
+
+      - name: Verify signing environment
+        shell: bash
+        env:
+          PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
+          PROFILE_EXPIRES: ${{ steps.signing.outputs.profile_expires }}
+        run: |
+          set -euo pipefail
+          echo "Temporary signing keychain is ready."
+          echo "Provisioning profile: $PROFILE_NAME"
+          echo "Profile expires: $PROFILE_EXPIRES"
+
+      - name: Cleanup temporary signing environment
+        if: ${{ always() }}
+        shell: bash
+        run: bash builder/scripts/cleanup-signing.sh
+
+      - name: Signing readiness summary
+        if: ${{ success() }}
+        shell: bash
+        env:
+          PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
+          PROFILE_EXPIRES: ${{ steps.signing.outputs.profile_expires }}
         run: |
           {
             echo "## App Store / TestFlight signing"
             echo ""
-            echo "Signing secrets are present and structurally valid."
+            echo "Temporary macOS signing environment installed and verified successfully."
             echo ""
-            echo "> Certificate installation, archive signing and IPA export are not enabled yet."
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| Profile | `$PROFILE_NAME` |"
+            echo "| Expires | `$PROFILE_EXPIRES` |"
+            echo "| Certificate/profile match | `verified` |"
+            echo "| Cleanup | `completed` |"
+            echo ""
+            echo "> Signed archive creation and IPA export are not enabled yet."
           } >> "$GITHUB_STEP_SUMMARY"
