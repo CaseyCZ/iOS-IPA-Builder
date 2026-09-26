@@ -250,7 +250,13 @@ jobs:
             if ! bash builder/scripts/build-unsigned.sh \
               source "$DETECTED_PROJECT_TYPE" "$DETECTED_PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME" \
               > "$RUNNER_TEMP/private-build.log" 2>&1; then
-              echo "::error::Build failed. Detailed build output was hidden because Private logs are enabled."
+              echo "::error::Build failed. Showing compiler diagnostics only; full build output remains private."
+              echo "----- compiler diagnostics -----"
+              grep -E '(^|[[:space:]])(error:|fatal error:)|BUILD FAILED|The following build commands failed' "$RUNNER_TEMP/private-build.log" \
+                | sed -E 's#(/Users/runner/work/)[^ /]+/[^ /]+/#\1<workspace>/#g' \
+                | tail -n 80 \
+                || true
+              echo "----- end diagnostics -----"
               exit 160
             fi
           else
@@ -416,7 +422,13 @@ jobs:
             if ! bash builder/scripts/build-app-store.sh \
               source "$DETECTED_PROJECT_TYPE" "$DETECTED_PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME" \
               > "$RUNNER_TEMP/private-build.log" 2>&1; then
-              echo "::error::Signed build failed. Detailed build output was hidden because Private logs are enabled."
+              echo "::error::Signed build failed. Showing compiler diagnostics only; full build output remains private."
+              echo "----- compiler diagnostics -----"
+              grep -E '(^|[[:space:]])(error:|fatal error:)|BUILD FAILED|The following build commands failed' "$RUNNER_TEMP/private-build.log" \
+                | sed -E 's#(/Users/runner/work/)[^ /]+/[^ /]+/#\1<workspace>/#g' \
+                | tail -n 80 \
+                || true
+              echo "----- end diagnostics -----"
               exit 170
             fi
           else
