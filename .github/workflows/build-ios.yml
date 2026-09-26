@@ -39,6 +39,10 @@ on:
         description: "Output IPA name without .ipa (optional)"
         required: false
         type: string
+      output_repo:
+        description: "Destination repository for IPA release (owner/repo)"
+        required: true
+        type: string
       output_visibility:
         description: "Release visibility"
         required: true
@@ -69,12 +73,18 @@ jobs:
           PROJECT_TYPE: ${{ inputs.project_type }}
           BUILD_MODE: ${{ inputs.build_mode }}
           OUTPUT_NAME: ${{ inputs.output_name }}
+          OUTPUT_REPO: ${{ inputs.output_repo }}
           OUTPUT_VISIBILITY: ${{ inputs.output_visibility }}
         run: |
           set -euo pipefail
 
           if [[ ! "$SOURCE_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
             echo "::error::source_repo must use owner/repo format."
+            exit 1
+          fi
+
+          if [[ ! "$OUTPUT_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+            echo "::error::output_repo must use owner/repo format."
             exit 1
           fi
 
@@ -121,6 +131,7 @@ jobs:
             echo "| Ref | `$SOURCE_REF` |"
             echo "| Project | `$PROJECT_TYPE` |"
             echo "| Mode | `$BUILD_MODE` |"
+            echo "| Output repository | `$OUTPUT_REPO` |"
             echo "| Output visibility | `$OUTPUT_VISIBILITY` |"
             echo "| Output | `${OUTPUT_NAME:-auto}` |"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -321,7 +332,7 @@ jobs:
         id: deliver
         shell: bash
         env:
-          OUTPUT_REPO: ${{ secrets.OUTPUT_REPO }}
+          OUTPUT_REPO: ${{ inputs.output_repo }}
           OUTPUT_TOKEN: ${{ secrets.OUTPUT_TOKEN }}
           OUTPUT_VISIBILITY: ${{ inputs.output_visibility }}
           IPA_PATH: ${{ steps.package.outputs.ipa_path }}
@@ -497,7 +508,7 @@ jobs:
         id: deliver
         shell: bash
         env:
-          OUTPUT_REPO: ${{ secrets.OUTPUT_REPO }}
+          OUTPUT_REPO: ${{ inputs.output_repo }}
           OUTPUT_TOKEN: ${{ secrets.OUTPUT_TOKEN }}
           OUTPUT_VISIBILITY: ${{ inputs.output_visibility }}
           IPA_PATH: ${{ steps.package.outputs.ipa_path }}
