@@ -2,6 +2,14 @@
 
 Build clean iOS IPA packages with GitHub Actions — without needing a local Mac.
 
+## Website
+
+The product landing page is stored in `docs/` and is ready for GitHub Pages.
+
+Expected project URL after enabling Pages from `Master /docs`:
+
+`https://caseycz.github.io/iOS-IPA-Builder/`
+
 > Status: early development. Clean unsigned IPA builds are enabled for native Xcode, Capacitor, Flutter and React Native projects.
 
 ## Build modes
