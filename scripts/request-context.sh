@@ -62,6 +62,14 @@ output_repo = normalize_repo(output_raw, "output_repo") if output_raw else sourc
 
 source_ref = get("source_ref")
 if source_ref:
+    # Be forgiving when a UI label or typographic dash is pasted with the ref.
+    source_ref = re.sub(r"^source\s+ref\s*:\s*", "", source_ref, flags=re.IGNORECASE)
+    source_ref = source_ref.translate(str.maketrans({
+        "\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": "-",
+        "\u2014": "-", "\u2212": "-"
+    }))
+    source_ref = source_ref.strip()
+
     if source_ref.startswith("-") or ".." in source_ref or not re.fullmatch(r"[A-Za-z0-9._/-]+", source_ref):
         raise SystemExit("source_ref contains unsupported characters or an unsafe ref.")
 
