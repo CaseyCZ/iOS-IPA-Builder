@@ -299,12 +299,24 @@ jobs:
           set -euo pipefail
           bash builder/scripts/build-unsigned.sh source "$PROJECT_TYPE" "$PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME"
 
+      - name: Deliver IPA to private release
+        id: deliver
+        shell: bash
+        env:
+          OUTPUT_REPO: ${{ secrets.OUTPUT_REPO }}
+          OUTPUT_TOKEN: ${{ secrets.OUTPUT_TOKEN }}
+          IPA_PATH: ${{ steps.package.outputs.ipa_path }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/deliver-private-release.sh "$IPA_PATH"
+
       - name: Build summary
         shell: bash
         env:
           IPA_NAME: ${{ steps.package.outputs.ipa_name }}
           IPA_SIZE: ${{ steps.package.outputs.ipa_size }}
           IPA_SHA256: ${{ steps.package.outputs.ipa_sha256 }}
+          RELEASE_TAG: ${{ steps.deliver.outputs.release_tag }}
         run: |
           {
             echo "## Unsigned IPA built"
@@ -315,8 +327,10 @@ jobs:
             echo "| Size | `$IPA_SIZE` |"
             echo "| SHA-256 | `$IPA_SHA256` |"
             echo "| Signing | `unsigned / CODE_SIGNING_ALLOWED=NO` |"
+            echo "| Delivery | `private GitHub Release` |"
+            echo "| Private release tag | `$RELEASE_TAG` |"
             echo ""
-            echo "> IPA upload/delivery will be added in the next stage."
+            echo "> No IPA was stored as a public Actions artifact."
           } >> "$GITHUB_STEP_SUMMARY"
 
   app-store-not-ready:
