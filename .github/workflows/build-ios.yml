@@ -39,6 +39,14 @@ on:
         description: "Output IPA name without .ipa (optional)"
         required: false
         type: string
+      output_visibility:
+        description: "Release visibility"
+        required: true
+        default: "private"
+        type: choice
+        options:
+          - private
+          - public
 
 permissions:
   contents: read
@@ -61,6 +69,7 @@ jobs:
           PROJECT_TYPE: ${{ inputs.project_type }}
           BUILD_MODE: ${{ inputs.build_mode }}
           OUTPUT_NAME: ${{ inputs.output_name }}
+          OUTPUT_VISIBILITY: ${{ inputs.output_visibility }}
         run: |
           set -euo pipefail
 
@@ -90,6 +99,14 @@ jobs:
               ;;
           esac
 
+          case "$OUTPUT_VISIBILITY" in
+            private|public) ;;
+            *)
+              echo "::error::Unsupported output visibility."
+              exit 1
+              ;;
+          esac
+
           if [[ -n "$OUTPUT_NAME" && ! "$OUTPUT_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
             echo "::error::output_name may contain only letters, numbers, dot, underscore and dash."
             exit 1
@@ -104,6 +121,7 @@ jobs:
             echo "| Ref | `$SOURCE_REF` |"
             echo "| Project | `$PROJECT_TYPE` |"
             echo "| Mode | `$BUILD_MODE` |"
+            echo "| Output visibility | `$OUTPUT_VISIBILITY` |"
             echo "| Output | `${OUTPUT_NAME:-auto}` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -305,6 +323,7 @@ jobs:
         env:
           OUTPUT_REPO: ${{ secrets.OUTPUT_REPO }}
           OUTPUT_TOKEN: ${{ secrets.OUTPUT_TOKEN }}
+          OUTPUT_VISIBILITY: ${{ inputs.output_visibility }}
           IPA_PATH: ${{ steps.package.outputs.ipa_path }}
         run: |
           set -euo pipefail
@@ -327,7 +346,7 @@ jobs:
             echo "| Size | `$IPA_SIZE` |"
             echo "| SHA-256 | `$IPA_SHA256` |"
             echo "| Signing | `unsigned / CODE_SIGNING_ALLOWED=NO` |"
-            echo "| Delivery | `private GitHub Release` |"
+            echo "| Delivery | `${{ inputs.output_visibility }} GitHub Release` |"
             echo "| Private release tag | `$RELEASE_TAG` |"
             echo ""
             echo "> No IPA was stored as a public Actions artifact."
