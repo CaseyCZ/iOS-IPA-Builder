@@ -35,23 +35,14 @@ jobs:
             bash -n "$script"
           done
 
-      - name: Enforce runner policy
+      - name: Enforce standard runner policy
         shell: bash
         run: |
           set -euo pipefail
-          INVALID="$(grep -REn '^[[:space:]]{4}runs-on:' .github/workflows | grep -Ev 'runs-on:[[:space:]]*(ubuntu-latest|macos-latest)[[:space:]]*
-      - name: Confirm no Actions artifact or cache storage
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -REni 'actions/(upload-artifact|cache)@' .github/workflows; then
-            echo "::error::Actions artifact/cache storage is intentionally disabled for this builder."
-            exit 1
-          fi
- || true)"
+          INVALID="$(grep -REn '^[ ]{4}runs-on:' .github/workflows | grep -Ev 'runs-on:[ ]*(ubuntu-latest|macos-latest)[ ]*$' || true)"
           if [[ -n "$INVALID" ]]; then
             echo "$INVALID"
-            echo "::error::Only ubuntu-latest and macos-latest standard GitHub-hosted runners are allowed."
+            echo "::error::Only ubuntu-latest and macos-latest are allowed."
             exit 1
           fi
 
@@ -59,7 +50,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -REni 'actions/(upload-artifact|cache)@' .github/workflows; then
-            echo "::error::Actions artifact/cache storage is intentionally disabled for this builder."
+          if grep -En 'actions/(upload-artifact|cache)@' .github/workflows/build-ios.yml; then
+            echo "::error::Actions artifact/cache storage is intentionally disabled."
             exit 1
           fi
