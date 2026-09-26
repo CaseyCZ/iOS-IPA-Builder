@@ -269,14 +269,17 @@ jobs:
         shell: bash
         env:
           OUTPUT_TOKEN: ${{ secrets.OUTPUT_TOKEN }}
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
         run: |
           set -euo pipefail
           source "$RUNNER_TEMP/request.env"
           source "$RUNNER_TEMP/build.env"
+          export OUTPUT_TOKEN="${OUTPUT_TOKEN:-${SOURCE_TOKEN:-}}"
 
           if [[ "$LOG_MODE" == "private" ]]; then
             if ! bash builder/scripts/deliver-release.sh "$IPA_PATH" > "$RUNNER_TEMP/private-delivery.log" 2>&1; then
-              echo "::error::IPA delivery failed. Details were hidden because Private logs are enabled."
+              echo "::error::IPA delivery failed."
+              grep -E '^::error::|^curl:' "$RUNNER_TEMP/private-delivery.log" | tail -n 12 || true
               exit 161
             fi
           else
@@ -446,14 +449,17 @@ jobs:
         shell: bash
         env:
           OUTPUT_TOKEN: ${{ secrets.OUTPUT_TOKEN }}
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
         run: |
           set -euo pipefail
           source "$RUNNER_TEMP/request.env"
           source "$RUNNER_TEMP/build.env"
+          export OUTPUT_TOKEN="${OUTPUT_TOKEN:-${SOURCE_TOKEN:-}}"
 
           if [[ "$LOG_MODE" == "private" ]]; then
             if ! bash builder/scripts/deliver-release.sh "$IPA_PATH" > "$RUNNER_TEMP/private-delivery.log" 2>&1; then
-              echo "::error::IPA delivery failed. Details were hidden because Private logs are enabled."
+              echo "::error::IPA delivery failed."
+              grep -E '^::error::|^curl:' "$RUNNER_TEMP/private-delivery.log" | tail -n 12 || true
               exit 171
             fi
           else
