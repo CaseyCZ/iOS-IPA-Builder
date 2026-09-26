@@ -28,12 +28,26 @@ fi
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-if ! printf '%s' "$APPLE_CERTIFICATE_P12_BASE64" | base64 -d > "$tmp/certificate.p12" 2>/dev/null; then
+decode_base64_to_file() {
+  local value="$1"
+  local destination="$2"
+  VALUE="$value" DESTINATION="$destination" python3 - <<'PY'
+import base64, os, sys
+try:
+    data = base64.b64decode(os.environ["VALUE"], validate=True)
+except Exception:
+    sys.exit(1)
+with open(os.environ["DESTINATION"], "wb") as f:
+    f.write(data)
+PY
+}
+
+if ! decode_base64_to_file "$APPLE_CERTIFICATE_P12_BASE64" "$tmp/certificate.p12"; then
   echo "::error::APPLE_CERTIFICATE_P12_BASE64 is not valid base64."
   exit 92
 fi
 
-if ! printf '%s' "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 -d > "$tmp/profile.mobileprovision" 2>/dev/null; then
+if ! decode_base64_to_file "$APPLE_PROVISIONING_PROFILE_BASE64" "$tmp/profile.mobileprovision"; then
   echo "::error::APPLE_PROVISIONING_PROFILE_BASE64 is not valid base64."
   exit 93
 fi
