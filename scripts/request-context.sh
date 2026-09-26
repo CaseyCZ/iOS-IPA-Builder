@@ -87,6 +87,10 @@ output_visibility = get("output_visibility", "private")
 if output_visibility not in {"private", "public"}:
     raise SystemExit("Unsupported output visibility.")
 
+log_mode = get("log_mode", "private")
+if log_mode not in {"private", "verbose"}:
+    raise SystemExit("Unsupported log mode.")
+
 output_name = get("output_name")
 if output_name and not re.fullmatch(r"[A-Za-z0-9._-]+", output_name):
     raise SystemExit("output_name may contain only letters, numbers, dot, underscore and dash.")
@@ -105,6 +109,7 @@ values = {
     "OUTPUT_NAME": output_name,
     "OUTPUT_REPO": output_repo,
     "OUTPUT_VISIBILITY": output_visibility,
+    "LOG_MODE": log_mode,
 }
 
 for key, value in values.items():
