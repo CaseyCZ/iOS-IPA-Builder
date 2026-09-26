@@ -67,22 +67,16 @@ run_web_build_if_present() {
 
 prepare_capacitor() {
   local dir="$1"
-
-  set_build_stage "Capacitor: install dependencies"
   install_js_dependencies "$dir"
-
-  set_build_stage "Capacitor: web build"
   run_web_build_if_present "$dir"
 
   cd "$dir"
 
   if [[ ! -d ios/App ]]; then
-    set_build_stage "Capacitor: create iOS project"
     echo "No Capacitor iOS project found; creating it."
     npx cap add ios
   fi
 
-  set_build_stage "Capacitor: sync iOS project"
   npx cap sync ios
 
   # Some web projects intentionally keep classic/static assets outside their
@@ -102,11 +96,8 @@ process.stdout.write('dist');
 NODE
 )"
   if [[ -d assets && -d "$web_dir" ]]; then
-    set_build_stage "Capacitor: copy static assets"
     mkdir -p "$web_dir/assets"
     rsync -a --ignore-existing assets/ "$web_dir/assets/"
-
-    set_build_stage "Capacitor: resync iOS project"
     npx cap sync ios
   fi
 }
@@ -173,11 +164,7 @@ find_xcode_container() {
   local workspace project
 
   workspace="$(find "$search_root" -maxdepth 4 -type d -name '*.xcworkspace' \
-    -not -path '*/Pods/*' \
-    -not -path '*/DerivedData/*' \
-    -not -path '*.xcodeproj/project.xcworkspace' \
-    -not -path '*.xcodeproj/project.xcworkspace/*' \
-    | sort | head -n 1 || true)"
+    -not -path '*/Pods/*' -not -path '*/DerivedData/*' | sort | head -n 1 || true)"
   project="$(find "$search_root" -maxdepth 4 -type d -name '*.xcodeproj' \
     -not -path '*/Pods/*' -not -path '*/DerivedData/*' | sort | head -n 1 || true)"
 
@@ -219,13 +206,6 @@ PY
 }
 
 BUILT_APP_PATH=""
-
-set_build_stage() {
-  if [[ -n "${BUILD_STAGE_FILE:-}" ]]; then
-    printf '%s\n' "$1" > "$BUILD_STAGE_FILE"
-    chmod 600 "$BUILD_STAGE_FILE"
-  fi
-}
 
 build_xcode_app() {
   local search_root="$1"
@@ -334,27 +314,19 @@ package_ipa() {
 
 case "$PROJECT_TYPE" in
   capacitor)
-    set_build_stage "Capacitor preparation"
     prepare_capacitor "$ROOT"
-    set_build_stage "CocoaPods preparation"
     install_pods_if_needed "$ROOT/ios/App" "$ROOT"
-    set_build_stage "Xcode build"
     build_xcode_app "$ROOT/ios"
     ;;
   react-native)
-    set_build_stage "React Native preparation"
     prepare_react_native "$ROOT"
-    set_build_stage "Xcode build"
     build_xcode_app "$ROOT/ios"
     ;;
   flutter)
-    set_build_stage "Flutter build"
     build_flutter_app "$ROOT"
     ;;
   xcode)
-    set_build_stage "CocoaPods preparation"
     install_pods_if_needed "$ROOT" "$ROOT"
-    set_build_stage "Xcode build"
     build_xcode_app "$ROOT"
     ;;
 esac
@@ -364,6 +336,4 @@ if [[ -z "$BUILT_APP_PATH" ]]; then
   exit 58
 fi
 
-set_build_stage "IPA packaging"
 package_ipa "$BUILT_APP_PATH"
-set_build_stage "complete"
