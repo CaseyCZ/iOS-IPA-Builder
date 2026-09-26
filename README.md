@@ -14,7 +14,7 @@ Intended for tools and workflows that perform their own signing, such as AltStor
 ### App Store / TestFlight
 Uses the user's own Apple distribution signing credentials.
 
-The current stage validates the signing configuration only. Certificate installation, signed archive creation and IPA export will be enabled in the next stage.
+The current stage validates the signing configuration and installs it into a temporary macOS keychain for verification. The matching provisioning profile is installed only for the job and removed again before the runner finishes. Signed archive creation and IPA export will be enabled in the next stage.
 
 Configure these repository secrets in the user's own builder repository or fork:
 
@@ -85,7 +85,6 @@ Available now:
 
 Next stages:
 
-- temporary keychain installation of the user's Apple Distribution certificate
 - App Store / TestFlight archive signing and IPA export
 
 ## License
