@@ -1,0 +1,43 @@
+name: HB Control Compile Probe
+
+on:
+  push:
+    branches:
+      - Master
+    paths:
+      - ".github/workflows/hbcontrol-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Compile HB Control on Xcode 27
+    runs-on: xcode-27
+    steps:
+      - name: Checkout HB Control
+        uses: actions/checkout@v4
+        with:
+          repository: CaseyCZ/Homebridge-Manager
+          ref: swift-native
+          path: source
+          persist-credentials: false
+
+      - name: Verify Xcode
+        run: xcodebuild -version
+
+      - name: Compile unsigned
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project source/HBControl.xcodeproj \
+            -scheme HBControl \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/hbcontrol-derived" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM="" \
+            build
