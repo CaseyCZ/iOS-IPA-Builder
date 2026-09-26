@@ -1,0 +1,114 @@
+name: iOS IPA Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: "Source repository (owner/repo)"
+        required: true
+        type: string
+      source_ref:
+        description: "Branch, tag or commit"
+        required: true
+        default: "main"
+        type: string
+      project_type:
+        description: "Project type"
+        required: true
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - xcode
+          - capacitor
+          - flutter
+          - react-native
+      build_mode:
+        description: "Build output"
+        required: true
+        default: "unsigned"
+        type: choice
+        options:
+          - unsigned
+          - app-store
+      scheme:
+        description: "Xcode scheme (optional; leave blank for auto detection)"
+        required: false
+        type: string
+      output_name:
+        description: "Output IPA name without .ipa (optional)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ipa-builder-${{ github.actor }}-${{ inputs.source_repo }}-${{ inputs.source_ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-request:
+    name: Validate build request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs
+        shell: bash
+        env:
+          SOURCE_REPO: ${{ inputs.source_repo }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          PROJECT_TYPE: ${{ inputs.project_type }}
+          BUILD_MODE: ${{ inputs.build_mode }}
+          SCHEME: ${{ inputs.scheme }}
+          OUTPUT_NAME: ${{ inputs.output_name }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$SOURCE_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+            echo "::error::source_repo must use owner/repo format."
+            exit 1
+          fi
+
+          if [[ -z "$SOURCE_REF" ]]; then
+            echo "::error::source_ref cannot be empty."
+            exit 1
+          fi
+
+          case "$PROJECT_TYPE" in
+            auto|xcode|capacitor|flutter|react-native) ;;
+            *)
+              echo "::error::Unsupported project type."
+              exit 1
+              ;;
+          esac
+
+          case "$BUILD_MODE" in
+            unsigned|app-store) ;;
+            *)
+              echo "::error::Unsupported build mode."
+              exit 1
+              ;;
+          esac
+
+          if [[ -n "$OUTPUT_NAME" && ! "$OUTPUT_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::output_name may contain only letters, numbers, dot, underscore and dash."
+            exit 1
+          fi
+
+          {
+            echo "## iOS IPA Builder request"
+            echo ""
+            echo "| Setting | Value |"
+            echo "| --- | --- |"
+            echo "| Source | `$SOURCE_REPO` |"
+            echo "| Ref | `$SOURCE_REF` |"
+            echo "| Project | `$PROJECT_TYPE` |"
+            echo "| Mode | `$BUILD_MODE` |"
+            echo "| Scheme | `${SCHEME:-auto}` |"
+            echo "| Output | `${OUTPUT_NAME:-auto}` |"
+            echo ""
+            echo "> Build execution is not enabled yet."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Builder status
+        run: echo "Request validated. Build engine will be added in the next stage."
