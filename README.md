@@ -43,6 +43,7 @@ This repository is public and contains only build infrastructure.
 - No application source code is stored here by default.
 - No Apple credentials are bundled with the project.
 - No developer secrets are committed to the repository.
+- Repository names are ordinary workflow inputs; only access tokens and Apple signing credentials are stored as secrets.
 - Public source repositories can be inspected without a source token.
 - Private applications require the owner to provide their own fine-grained read-only source token as the `SOURCE_TOKEN` repository secret.
 - The source token is used only while fetching the selected source and is not persisted in its Git configuration.
@@ -57,10 +58,11 @@ This repository is public and contains only build infrastructure.
 
 Choose `Private` or `Public` in the workflow. Private is the default.
 
-Configure these repository secrets in your builder repository or fork:
+When starting the workflow, enter the destination repository in the `output_repo` field using `owner/repo` format.
 
-- `OUTPUT_REPO` — target repository in `owner/repo` format.
-- `OUTPUT_TOKEN` — fine-grained token with permission to create releases and upload assets in that target repository.
+Configure this repository secret in your builder repository or fork:
+
+- `OUTPUT_TOKEN` — fine-grained token with permission to create releases and upload assets in the selected destination repository.
 
 For private application source repositories also configure:
 
