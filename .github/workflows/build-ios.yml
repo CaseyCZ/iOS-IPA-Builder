@@ -69,8 +69,8 @@ jobs:
             exit 1
           fi
 
-          if [[ -z "$SOURCE_REF" ]]; then
-            echo "::error::source_ref cannot be empty."
+          if [[ -z "$SOURCE_REF" || ! "$SOURCE_REF" =~ ^[A-Za-z0-9._/-]+$ || "$SOURCE_REF" == -* || "$SOURCE_REF" == *".."* ]]; then
+            echo "::error::source_ref contains unsupported characters or an unsafe ref."
             exit 1
           fi
 
@@ -111,4 +111,94 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Builder status
-        run: echo "Request validated. Build engine will be added in the next stage."
+        run: echo "Request validated. Source inspection is enabled; compilation is still disabled."
+
+  inspect-source:
+    name: Inspect source
+    needs: validate-request
+    runs-on: ubuntu-latest
+    outputs:
+      project_type: ${{ steps.detect.outputs.project_type }}
+      detected_type: ${{ steps.detect.outputs.detected_type }}
+      project_root: ${{ steps.detect.outputs.project_root }}
+      marker: ${{ steps.detect.outputs.marker }}
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v4
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Fetch application source
+        shell: bash
+        env:
+          SOURCE_REPO: ${{ inputs.source_repo }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          rm -rf source
+          git init -q source
+          git -C source remote add origin "https://github.com/$SOURCE_REPO.git"
+
+          if [[ -n "$SOURCE_TOKEN" ]]; then
+            ASKPASS="$RUNNER_TEMP/ios-builder-git-askpass.sh"
+            cat > "$ASKPASS" <<'EOF'
+          #!/usr/bin/env bash
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *Password*) printf '%s\n' "$SOURCE_TOKEN" ;;
+            *) printf '\n' ;;
+          esac
+          EOF
+            chmod 700 "$ASKPASS"
+            export GIT_ASKPASS="$ASKPASS"
+            export GIT_TERMINAL_PROMPT=0
+          fi
+
+          if ! git -C source fetch --quiet --depth=1 origin "$SOURCE_REF"; then
+            echo "::error::Unable to fetch $SOURCE_REPO at ref $SOURCE_REF."
+            echo "::error::For a private repository, add a fine-grained read-only token as the SOURCE_TOKEN repository secret."
+            exit 30
+          fi
+
+          git -C source checkout --quiet --detach FETCH_HEAD
+          git -C source remote remove origin
+          rm -f "${ASKPASS:-}"
+
+          echo "Source fetched successfully."
+
+      - name: Detect project type
+        id: detect
+        shell: bash
+        env:
+          REQUESTED_TYPE: ${{ inputs.project_type }}
+        run: bash builder/scripts/detect-project.sh source "$REQUESTED_TYPE"
+
+      - name: Source summary
+        shell: bash
+        env:
+          SOURCE_REPO: ${{ inputs.source_repo }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          REQUESTED_TYPE: ${{ inputs.project_type }}
+          PROJECT_TYPE: ${{ steps.detect.outputs.project_type }}
+          DETECTED_TYPE: ${{ steps.detect.outputs.detected_type }}
+          PROJECT_ROOT: ${{ steps.detect.outputs.project_root }}
+          MARKER: ${{ steps.detect.outputs.marker }}
+        run: |
+          {
+            echo "## Source inspection"
+            echo ""
+            echo "| Setting | Value |"
+            echo "| --- | --- |"
+            echo "| Source | `$SOURCE_REPO` |"
+            echo "| Ref | `$SOURCE_REF` |"
+            echo "| Requested type | `$REQUESTED_TYPE` |"
+            echo "| Detected type | `$DETECTED_TYPE` |"
+            echo "| Build type | `$PROJECT_TYPE` |"
+            echo "| Project root | `$PROJECT_ROOT` |"
+            echo "| Marker | `${MARKER:-none}` |"
+            echo ""
+            echo "> Source code was inspected only. No project build commands were executed."
+          } >> "$GITHUB_STEP_SUMMARY"
