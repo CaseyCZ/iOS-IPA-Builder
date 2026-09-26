@@ -50,3 +50,20 @@ jobs:
             echo "::error::Actions artifact/cache storage is intentionally disabled."
             exit 1
           fi
+
+      - name: Block automatic Apple uploads
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if grep -REniE 'iTMSTransporter|altool.*--upload-app|notarytool[[:space:]]+submit' scripts .github/workflows; then
+            echo "::error::Automatic Apple upload tooling is intentionally disabled."
+            exit 1
+          fi
+
+          if grep -REniE '"destination"[[:space:]]*:[[:space:]]*"upload"' scripts; then
+            echo "::error::ExportOptions destination must remain export, never upload."
+            exit 1
+          fi
+
+          grep -q '"destination": "export"' scripts/build-app-store.sh
