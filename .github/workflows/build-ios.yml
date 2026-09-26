@@ -317,7 +317,7 @@ jobs:
           set -euo pipefail
           bash builder/scripts/build-unsigned.sh source "$PROJECT_TYPE" "$PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME"
 
-      - name: Deliver IPA to private release
+      - name: Deliver IPA to configured release
         id: deliver
         shell: bash
         env:
@@ -347,18 +347,41 @@ jobs:
             echo "| SHA-256 | `$IPA_SHA256` |"
             echo "| Signing | `unsigned / CODE_SIGNING_ALLOWED=NO` |"
             echo "| Delivery | `${{ inputs.output_visibility }} GitHub Release` |"
-            echo "| Private release tag | `$RELEASE_TAG` |"
+            echo "| Release tag | `$RELEASE_TAG` |"
             echo ""
             echo "> No IPA was stored as a public Actions artifact."
           } >> "$GITHUB_STEP_SUMMARY"
 
-  app-store-not-ready:
-    name: App Store mode not enabled yet
+  validate-app-store-signing:
+    name: Validate App Store signing
     needs: inspect-source
     if: ${{ inputs.build_mode == 'app-store' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Signing stage not enabled
+      - name: Checkout builder
+        uses: actions/checkout@v4
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Validate signing secrets
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          echo "::error::App Store / TestFlight signing is not enabled yet. No Apple credentials were accessed."
-          exit 71
+          set -euo pipefail
+          bash builder/scripts/validate-signing.sh
+
+      - name: Signing readiness summary
+        shell: bash
+        run: |
+          {
+            echo "## App Store / TestFlight signing"
+            echo ""
+            echo "Signing secrets are present and structurally valid."
+            echo ""
+            echo "> Certificate installation, archive signing and IPA export are not enabled yet."
+          } >> "$GITHUB_STEP_SUMMARY"
