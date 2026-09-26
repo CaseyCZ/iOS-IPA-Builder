@@ -40,6 +40,7 @@ This repository is public and contains only build infrastructure.
 - Public users should fork this repository and configure their own secrets in their fork.
 - Source inspection does not execute code from the selected application.
 - Build outputs will not be published automatically from this repository.
+- Build jobs are restricted to standard GitHub-hosted runners; larger/xlarge/custom/self-hosted runner labels are intentionally blocked.
 
 ## Current stage
 
