@@ -90,6 +90,10 @@ if expires <= now:
 entitlements = p.get("Entitlements") or {}
 if entitlements.get("get-task-allow") is True:
     raise SystemExit("ERROR:DEVELOPMENT_PROFILE")
+if p.get("ProvisionedDevices"):
+    raise SystemExit("ERROR:DEVICE_PROFILE")
+if p.get("ProvisionsAllDevices") is True:
+    raise SystemExit("ERROR:ENTERPRISE_PROFILE")
 
 profile_hashes = {
     hashlib.sha1(cert).hexdigest().upper()
