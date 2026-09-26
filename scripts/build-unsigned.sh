@@ -288,6 +288,16 @@ package_ipa() {
   sha="$(shasum -a 256 "$ipa_path" | awk '{print $1}')"
   size="$(du -h "$ipa_path" | awk '{print $1}')"
 
+  if [[ -n "${BUILD_ENV_FILE:-}" ]]; then
+    {
+      printf 'IPA_PATH=%q\n' "$ipa_path"
+      printf 'IPA_NAME=%q\n' "$(basename "$ipa_path")"
+      printf 'IPA_SHA256=%q\n' "$sha"
+      printf 'IPA_SIZE=%q\n' "$size"
+    } > "$BUILD_ENV_FILE"
+    chmod 600 "$BUILD_ENV_FILE"
+  fi
+
   if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
     {
       echo "ipa_path=$ipa_path"
