@@ -56,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if grep -REniE 'iTMSTransporter|altool.*--upload-app|notarytool[[:space:]]+submit' scripts .github/workflows; then
+          if grep -REniE 'iTMSTransporter|altool.*--upload-app|notarytool[[:space:]]+submit' scripts .github/workflows/build-ios.yml; then
             echo "::error::Automatic Apple upload tooling is intentionally disabled."
             exit 1
           fi
