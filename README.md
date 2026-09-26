@@ -12,9 +12,18 @@ Creates a clean unsigned IPA from the application's own source code.
 Intended for tools and workflows that perform their own signing, such as AltStore, SideStore and compatible IPA/container workflows.
 
 ### App Store / TestFlight
-Creates a normal release build using the user's own Apple signing credentials.
+Uses the user's own Apple distribution signing credentials.
 
-Apple certificates, provisioning profiles and App Store Connect credentials will always belong to the user and must be configured in their own GitHub repository/fork as encrypted secrets.
+The current stage validates the signing configuration only. Certificate installation, signed archive creation and IPA export will be enabled in the next stage.
+
+Configure these repository secrets in the user's own builder repository or fork:
+
+- `APPLE_CERTIFICATE_P12_BASE64` — Apple Distribution certificate exported as a Base64-encoded `.p12`.
+- `APPLE_CERTIFICATE_PASSWORD` — password for that `.p12`.
+- `APPLE_PROVISIONING_PROFILE_BASE64` — matching App Store Connect provisioning profile encoded as Base64.
+- `APPLE_TEAM_ID` — 10-character Apple Developer Team ID.
+
+Signing material is never committed to the repository and is only exposed to the workflow through GitHub encrypted secrets.
 
 ## Supported project types
 
@@ -76,7 +85,8 @@ Available now:
 
 Next stages:
 
-- App Store / TestFlight signing with the user's own Apple credentials
+- temporary keychain installation of the user's Apple Distribution certificate
+- App Store / TestFlight archive signing and IPA export
 
 ## License
 
