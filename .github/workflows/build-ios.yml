@@ -236,12 +236,14 @@ jobs:
           source "$RUNNER_TEMP/request.env"
           source "$RUNNER_TEMP/project.env"
           export BUILD_ENV_FILE="$RUNNER_TEMP/build.env"
+          export BUILD_STAGE_FILE="$RUNNER_TEMP/build-stage.txt"
 
           if [[ "$LOG_MODE" == "private" ]]; then
             if ! bash builder/scripts/build-unsigned.sh \
               source "$DETECTED_PROJECT_TYPE" "$DETECTED_PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME" \
               > "$RUNNER_TEMP/private-build.log" 2>&1; then
-              echo "::error::Build failed. Detailed build output was hidden because Private logs are enabled."
+              STAGE="$(cat "$RUNNER_TEMP/build-stage.txt" 2>/dev/null || echo "unknown stage")"
+              echo "::error::Build failed during: $STAGE. Detailed build output was hidden because Private logs are enabled."
               exit 160
             fi
           else
@@ -300,7 +302,7 @@ jobs:
       - name: Remove private transient logs
         if: ${{ always() }}
         shell: bash
-        run: rm -f "$RUNNER_TEMP/private-build.log" "$RUNNER_TEMP/private-delivery.log" "$RUNNER_TEMP/request.env" "$RUNNER_TEMP/project.env" "$RUNNER_TEMP/build.env"
+        run: rm -f "$RUNNER_TEMP/private-build.log" "$RUNNER_TEMP/private-delivery.log" "$RUNNER_TEMP/request.env" "$RUNNER_TEMP/project.env" "$RUNNER_TEMP/build.env" "$RUNNER_TEMP/build-stage.txt"
 
   build-app-store:
     name: Build App Store IPA
