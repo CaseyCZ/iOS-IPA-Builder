@@ -28,12 +28,12 @@ fi
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-if ! printf '%s' "$APPLE_CERTIFICATE_P12_BASE64" | base64 --decode > "$tmp/certificate.p12" 2>/dev/null; then
+if ! printf '%s' "$APPLE_CERTIFICATE_P12_BASE64" | base64 -d > "$tmp/certificate.p12" 2>/dev/null; then
   echo "::error::APPLE_CERTIFICATE_P12_BASE64 is not valid base64."
   exit 92
 fi
 
-if ! printf '%s' "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$tmp/profile.mobileprovision" 2>/dev/null; then
+if ! printf '%s' "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 -d > "$tmp/profile.mobileprovision" 2>/dev/null; then
   echo "::error::APPLE_PROVISIONING_PROFILE_BASE64 is not valid base64."
   exit 93
 fi
