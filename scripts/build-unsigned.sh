@@ -23,9 +23,9 @@ if [[ ! -d "$ROOT" ]]; then
 fi
 
 case "$PROJECT_TYPE" in
-  xcode|capacitor) ;;
+  xcode|capacitor|flutter|react-native) ;;
   *)
-    echo "::error::Unsigned engine currently supports xcode and capacitor only."
+    echo "::error::Unsupported unsigned project type: $PROJECT_TYPE"
     exit 52
     ;;
 esac
@@ -45,7 +45,7 @@ install_js_dependencies() {
   elif [[ -f package.json ]]; then
     npm install --no-audit --no-fund
   else
-    echo "::error::Capacitor project has no package.json."
+    echo "::error::JavaScript project has no package.json."
     exit 53
   fi
 }
@@ -99,10 +99,64 @@ NODE
 
 install_pods_if_needed() {
   local ios_dir="$1"
+  local project_root="${2:-$1}"
   if [[ -f "$ios_dir/Podfile" ]]; then
     echo "Podfile detected; installing CocoaPods dependencies."
-    (cd "$ios_dir" && pod install)
+    if [[ -f "$project_root/Gemfile" ]] && command -v bundle >/dev/null 2>&1; then
+      (
+        cd "$project_root"
+        if bundle check >/dev/null 2>&1; then
+          cd "$ios_dir"
+          bundle exec pod install
+        else
+          echo "Bundler dependencies are not installed; using system CocoaPods."
+          cd "$ios_dir"
+          pod install
+        fi
+      )
+    else
+      (cd "$ios_dir" && pod install)
+    fi
   fi
+}
+
+prepare_react_native() {
+  local dir="$1"
+  if [[ ! -f "$dir/package.json" ]]; then
+    echo "::error::React Native project has no package.json at the detected project root."
+    exit 59
+  fi
+  if [[ ! -d "$dir/ios" ]]; then
+    echo "::error::React Native project has no ios directory. Expo managed projects without native iOS files are not supported yet."
+    exit 60
+  fi
+
+  install_js_dependencies "$dir"
+  install_pods_if_needed "$dir/ios" "$dir"
+}
+
+build_flutter_app() {
+  local dir="$1"
+
+  if ! command -v flutter >/dev/null 2>&1; then
+    echo "::error::Flutter SDK is not installed on the runner."
+    exit 61
+  fi
+
+  cd "$dir"
+  flutter --version
+  flutter pub get
+  flutter build ios --release --no-codesign
+
+  local app_path
+  app_path="$(find "$dir/build/ios/iphoneos" -maxdepth 2 -type d -name '*.app' -print | sort | head -n 1 || true)"
+  if [[ -z "$app_path" ]]; then
+    echo "::error::Flutter build completed but no iphoneos .app was found."
+    exit 62
+  fi
+
+  BUILT_APP_PATH="$app_path"
+  echo "Built app        : $BUILT_APP_PATH"
 }
 
 find_xcode_container() {
@@ -248,14 +302,24 @@ package_ipa() {
   echo "SHA-256   : $sha"
 }
 
-if [[ "$PROJECT_TYPE" == "capacitor" ]]; then
-  prepare_capacitor "$ROOT"
-  install_pods_if_needed "$ROOT/ios/App"
-  build_xcode_app "$ROOT/ios"
-else
-  install_pods_if_needed "$ROOT"
-  build_xcode_app "$ROOT"
-fi
+case "$PROJECT_TYPE" in
+  capacitor)
+    prepare_capacitor "$ROOT"
+    install_pods_if_needed "$ROOT/ios/App" "$ROOT"
+    build_xcode_app "$ROOT/ios"
+    ;;
+  react-native)
+    prepare_react_native "$ROOT"
+    build_xcode_app "$ROOT/ios"
+    ;;
+  flutter)
+    build_flutter_app "$ROOT"
+    ;;
+  xcode)
+    install_pods_if_needed "$ROOT" "$ROOT"
+    build_xcode_app "$ROOT"
+    ;;
+esac
 
 if [[ -z "$BUILT_APP_PATH" ]]; then
   echo "::error::Internal builder error: built app path is empty."
