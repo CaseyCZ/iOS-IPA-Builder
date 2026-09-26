@@ -43,6 +43,9 @@ on:
 permissions:
   contents: read
 
+# Runner policy: build jobs must use only standard GitHub-hosted runners.
+# Do not add larger/xlarge/custom/self-hosted runner labels.
+
 concurrency:
   group: ios-ipa-builder
   cancel-in-progress: false
@@ -109,6 +112,16 @@ jobs:
             echo ""
             echo "> Build execution is not enabled yet."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce standard-runner policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORKFLOW=".github/workflows/build-ios.yml"
+          if grep -Eiq 'runs-on:.*(large|xlarge|self-hosted|runner-group)' "$WORKFLOW"; then
+            echo "::error::Only standard GitHub-hosted runners are allowed."
+            exit 40
+          fi
 
       - name: Builder status
         run: echo "Request validated. Source inspection is enabled; compilation is still disabled."
