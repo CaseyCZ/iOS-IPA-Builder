@@ -26,6 +26,14 @@ on:
           - capacitor
           - flutter
           - react-native
+      xcode_runner:
+        description: "Xcode runner"
+        required: true
+        default: "macos-latest"
+        type: choice
+        options:
+          - macos-latest
+          - xcode-27
       build_mode:
         description: "Build output"
         required: true
@@ -100,6 +108,7 @@ jobs:
             echo "| --- | --- |"
             echo "| Project type | `$PROJECT_TYPE` |"
             echo "| Build mode | `$BUILD_MODE` |"
+            echo "| Xcode runner | `${{ inputs.xcode_runner }}` |"
             echo "| Output visibility | `$OUTPUT_VISIBILITY` |"
             echo "| Log mode | `$LOG_MODE` |"
             echo ""
@@ -165,7 +174,7 @@ jobs:
     name: Build unsigned IPA
     needs: inspect-source
     if: ${{ inputs.build_mode == 'unsigned' }}
-    runs-on: macos-latest
+    runs-on: ${{ inputs.xcode_runner }}
     steps:
       - name: Checkout builder
         uses: actions/checkout@v4
@@ -306,7 +315,7 @@ jobs:
     name: Build App Store IPA
     needs: inspect-source
     if: ${{ inputs.build_mode == 'app-store' }}
-    runs-on: macos-latest
+    runs-on: ${{ inputs.xcode_runner }}
     steps:
       - name: Checkout builder
         uses: actions/checkout@v4
