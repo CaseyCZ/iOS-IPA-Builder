@@ -3,13 +3,25 @@ set -euo pipefail
 
 SOURCE_DIR="${1:-source}"
 REQUESTED_TYPE="${2:-auto}"
+REQUESTED_PATH="${3:-}"
 
 if [[ ! -d "$SOURCE_DIR" ]]; then
-  echo "::error::Source directory does not exist: $SOURCE_DIR"
+  echo "::error::Source directory does not exist."
   exit 20
 fi
 
-cd "$SOURCE_DIR"
+SOURCE_DIR="$(cd "$SOURCE_DIR" && pwd)"
+SEARCH_ROOT="$SOURCE_DIR"
+
+if [[ -n "$REQUESTED_PATH" ]]; then
+  if [[ ! -d "$SOURCE_DIR/$REQUESTED_PATH" ]]; then
+    echo "::error::Requested project path does not exist."
+    exit 22
+  fi
+  SEARCH_ROOT="$SOURCE_DIR/$REQUESTED_PATH"
+fi
+
+cd "$SEARCH_ROOT"
 
 first_file() {
   find . -maxdepth 4 -type f \( "$@" \) -not -path './.git/*' -not -path '*/node_modules/*' -not -path '*/Pods/*' -print 2>/dev/null | sort | head -n 1
@@ -105,6 +117,14 @@ fi
 PROJECT_ROOT="${PROJECT_ROOT#./}"
 [[ -z "$PROJECT_ROOT" ]] && PROJECT_ROOT="."
 
+if [[ -n "$REQUESTED_PATH" ]]; then
+  if [[ "$PROJECT_ROOT" == "." ]]; then
+    PROJECT_ROOT="$REQUESTED_PATH"
+  else
+    PROJECT_ROOT="$REQUESTED_PATH/$PROJECT_ROOT"
+  fi
+fi
+
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   {
     echo "project_type=$FINAL_TYPE"
@@ -116,8 +136,10 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   } >> "$GITHUB_OUTPUT"
 fi
 
-echo "Requested type : $REQUESTED_TYPE"
-echo "Detected type  : $DETECTED_TYPE"
-echo "Build type     : $FINAL_TYPE"
-echo "Project root   : $PROJECT_ROOT"
-echo "Marker         : ${MARKER#./}"
+if [[ "${DETECT_QUIET:-0}" != "1" ]]; then
+  echo "Requested type : $REQUESTED_TYPE"
+  echo "Detected type  : $DETECTED_TYPE"
+  echo "Build type     : $FINAL_TYPE"
+  echo "Project root   : $PROJECT_ROOT"
+  echo "Marker         : ${MARKER#./}"
+fi
