@@ -136,6 +136,15 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   } >> "$GITHUB_OUTPUT"
 fi
 
+if [[ -n "${DETECT_ENV_FILE:-}" ]]; then
+  {
+    printf 'DETECTED_PROJECT_TYPE=%q\n' "$FINAL_TYPE"
+    printf 'DETECTED_TYPE=%q\n' "$DETECTED_TYPE"
+    printf 'DETECTED_PROJECT_ROOT=%q\n' "$PROJECT_ROOT"
+  } > "$DETECT_ENV_FILE"
+  chmod 600 "$DETECT_ENV_FILE"
+fi
+
 if [[ "${DETECT_QUIET:-0}" != "1" ]]; then
   echo "Requested type : $REQUESTED_TYPE"
   echo "Detected type  : $DETECTED_TYPE"
