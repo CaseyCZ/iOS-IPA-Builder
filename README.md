@@ -39,8 +39,23 @@ This repository is public and contains only build infrastructure.
 - The source token is used only while fetching the selected source and is not persisted in its Git configuration.
 - Public users should fork this repository and configure their own secrets in their fork.
 - Source inspection does not execute code from the selected application.
-- Build outputs will not be published automatically from this repository.
+- Unsigned IPA output is delivered only to a repository configured through private secrets.
+- The builder verifies that the destination repository is private before uploading the IPA.
+- No IPA is stored as a GitHub Actions artifact or cache.
 - Build jobs are restricted to standard GitHub-hosted runners; larger/xlarge/custom/self-hosted runner labels are intentionally blocked.
+
+## Private IPA delivery
+
+Configure these repository secrets in your builder repository or fork:
+
+- `OUTPUT_REPO` — target private repository in `owner/repo` format.
+- `OUTPUT_TOKEN` — fine-grained token with permission to create releases and upload assets in that target repository.
+
+For private application source repositories also configure:
+
+- `SOURCE_TOKEN` — fine-grained read-only token for the source repository.
+
+The output repository must already exist and must be private. Each successful build creates a unique prerelease with the IPA attached. If the destination is public, delivery is blocked.
 
 ## Current stage
 
@@ -54,11 +69,11 @@ Available now:
 - clean unsigned Release build for native Xcode, Capacitor, Flutter and React Native
 - standard `Payload/App.app` IPA packaging
 - SHA-256 and size reporting
+- private GitHub Release delivery
 - no GitHub Actions artifact/cache storage
 
 Next stages:
 
-- private output delivery
 - App Store / TestFlight signing with the user's own Apple credentials
 
 ## License
