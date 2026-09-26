@@ -182,6 +182,14 @@ chmod 600 "$PROFILE_PATH"
 } > "$STATE_FILE"
 chmod 600 "$STATE_FILE"
 
+SIGNING_ENV_FILE="$BASE_DIR/signing.env"
+{
+  printf 'PROFILE_UUID=%q\n' "$PROFILE_UUID"
+  printf 'PROFILE_NAME=%q\n' "$PROFILE_NAME"
+  printf 'PROFILE_EXPIRES=%q\n' "$PROFILE_EXPIRES"
+} > "$SIGNING_ENV_FILE"
+chmod 600 "$SIGNING_ENV_FILE"
+
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   {
     echo "profile_uuid=$PROFILE_UUID"
