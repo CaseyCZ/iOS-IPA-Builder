@@ -33,6 +33,15 @@ Configure these repository secrets in the user's own builder repository or fork:
 
 Signing material is never committed to the repository and is only exposed to the workflow through GitHub encrypted secrets.
 
+## Xcode runner
+
+The workflow includes an **Xcode runner** choice so one builder can be used for projects created with different Xcode generations.
+
+- `macos-latest` — default for ordinary projects and currently uses the stable Xcode supplied by GitHub.
+- `xcode-27` — select this for projects that require Xcode 27, such as the current native HB Control project.
+
+The selected runner is used for both unsigned and App Store/TestFlight builds.
+
 ## Supported project types
 
 Source inspection currently recognizes and can build unsigned IPA packages for:
