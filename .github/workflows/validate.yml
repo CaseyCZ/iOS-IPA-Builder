@@ -35,12 +35,97 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          INVALID="$(grep -REn '^[ ]{4}runs-on:' .github/workflows | grep -Ev 'runs-on:[ ]*(ubuntu-latest|macos-latest)[ ]*$' || true)"
-          if [[ -n "$INVALID" ]]; then
-            echo "$INVALID"
-            echo "::error::Only ubuntu-latest and macos-latest are allowed."
+          INVALID="$(grep -REn '^[ ]{4}runs-on:' .github/workflows | grep -Ev 'runs-on:[ ]*(ubuntu-latest|macos-latest|\$\{\{ inputs\.xcode_runner \}\})[ ]*
+
+      - name: Confirm no Actions artifact or cache storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -En 'actions/(upload-artifact|cache)@' .github/workflows/build-ios.yml; then
+            echo "::error::Actions artifact/cache storage is intentionally disabled."
             exit 1
           fi
+
+      - name: Block automatic Apple uploads
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if grep -REniE 'iTMSTransporter|altool.*--upload-app|notarytool[[:space:]]+submit' scripts .github/workflows/build-ios.yml; then
+            echo "::error::Automatic Apple upload tooling is intentionally disabled."
+            exit 1
+          fi
+
+          if grep -REniE '"destination"[[:space:]]*:[[:space:]]*"upload"' scripts; then
+            echo "::error::ExportOptions destination must remain export, never upload."
+            exit 1
+          fi
+
+          grep -q '"destination": "export"' scripts/build-app-store.sh
+ || true)"
+          if [[ -n "$INVALID" ]]; then
+            echo "$INVALID"
+            echo "::error::Only approved standard GitHub-hosted runner selections are allowed."
+            exit 1
+          fi
+
+          grep -q '^      xcode_runner:' .github/workflows/build-ios.yml
+          grep -q '^          - macos-latest
+
+      - name: Confirm no Actions artifact or cache storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -En 'actions/(upload-artifact|cache)@' .github/workflows/build-ios.yml; then
+            echo "::error::Actions artifact/cache storage is intentionally disabled."
+            exit 1
+          fi
+
+      - name: Block automatic Apple uploads
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if grep -REniE 'iTMSTransporter|altool.*--upload-app|notarytool[[:space:]]+submit' scripts .github/workflows/build-ios.yml; then
+            echo "::error::Automatic Apple upload tooling is intentionally disabled."
+            exit 1
+          fi
+
+          if grep -REniE '"destination"[[:space:]]*:[[:space:]]*"upload"' scripts; then
+            echo "::error::ExportOptions destination must remain export, never upload."
+            exit 1
+          fi
+
+          grep -q '"destination": "export"' scripts/build-app-store.sh
+ .github/workflows/build-ios.yml
+          grep -q '^          - xcode-27
+
+      - name: Confirm no Actions artifact or cache storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -En 'actions/(upload-artifact|cache)@' .github/workflows/build-ios.yml; then
+            echo "::error::Actions artifact/cache storage is intentionally disabled."
+            exit 1
+          fi
+
+      - name: Block automatic Apple uploads
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if grep -REniE 'iTMSTransporter|altool.*--upload-app|notarytool[[:space:]]+submit' scripts .github/workflows/build-ios.yml; then
+            echo "::error::Automatic Apple upload tooling is intentionally disabled."
+            exit 1
+          fi
+
+          if grep -REniE '"destination"[[:space:]]*:[[:space:]]*"upload"' scripts; then
+            echo "::error::ExportOptions destination must remain export, never upload."
+            exit 1
+          fi
+
+          grep -q '"destination": "export"' scripts/build-app-store.sh
+ .github/workflows/build-ios.yml
 
       - name: Confirm no Actions artifact or cache storage
         shell: bash
