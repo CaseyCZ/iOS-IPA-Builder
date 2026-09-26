@@ -4,13 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       source_repo:
-        description: "Source repository (owner/repo)"
+        description: "Source repository (owner/repo or GitHub URL)"
         required: true
         type: string
       source_ref:
-        description: "Branch, tag or commit"
-        required: true
-        default: "main"
+        description: "Branch, tag or commit (blank = repository default)"
+        required: false
+        type: string
+      project_path:
+        description: "Project folder inside repository (optional)"
+        required: false
         type: string
       project_type:
         description: "Project type"
@@ -32,7 +35,7 @@ on:
           - unsigned
           - app-store
       scheme:
-        description: "Xcode scheme (optional; leave blank for auto detection)"
+        description: "Xcode scheme (optional; blank = auto detection)"
         required: false
         type: string
       output_name:
@@ -40,8 +43,8 @@ on:
         required: false
         type: string
       output_repo:
-        description: "Destination repository for IPA release (owner/repo)"
-        required: true
+        description: "Destination repo or URL (blank = source repo)"
+        required: false
         type: string
       output_visibility:
         description: "Release visibility"
@@ -51,6 +54,14 @@ on:
         options:
           - private
           - public
+      log_mode:
+        description: "Build logs"
+        required: true
+        default: "private"
+        type: choice
+        options:
+          - private
+          - verbose
 
 permissions:
   contents: read
@@ -65,75 +76,34 @@ jobs:
     name: Validate build request
     runs-on: ubuntu-latest
     steps:
-      - name: Validate inputs
+      - name: Checkout builder
+        uses: actions/checkout@v4
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Validate request privately
         shell: bash
-        env:
-          SOURCE_REPO: ${{ inputs.source_repo }}
-          SOURCE_REF: ${{ inputs.source_ref }}
-          PROJECT_TYPE: ${{ inputs.project_type }}
-          BUILD_MODE: ${{ inputs.build_mode }}
-          OUTPUT_NAME: ${{ inputs.output_name }}
-          OUTPUT_REPO: ${{ inputs.output_repo }}
-          OUTPUT_VISIBILITY: ${{ inputs.output_visibility }}
         run: |
           set -euo pipefail
-
-          if [[ ! "$SOURCE_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
-            echo "::error::source_repo must use owner/repo format."
-            exit 1
-          fi
-
-          if [[ ! "$OUTPUT_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
-            echo "::error::output_repo must use owner/repo format."
-            exit 1
-          fi
-
-          if [[ -z "$SOURCE_REF" || ! "$SOURCE_REF" =~ ^[A-Za-z0-9._/-]+$ || "$SOURCE_REF" == -* || "$SOURCE_REF" == *".."* ]]; then
-            echo "::error::source_ref contains unsupported characters or an unsafe ref."
-            exit 1
-          fi
-
-          case "$PROJECT_TYPE" in
-            auto|xcode|capacitor|flutter|react-native) ;;
-            *)
-              echo "::error::Unsupported project type."
-              exit 1
-              ;;
-          esac
-
-          case "$BUILD_MODE" in
-            unsigned|app-store) ;;
-            *)
-              echo "::error::Unsupported build mode."
-              exit 1
-              ;;
-          esac
-
-          case "$OUTPUT_VISIBILITY" in
-            private|public) ;;
-            *)
-              echo "::error::Unsupported output visibility."
-              exit 1
-              ;;
-          esac
-
-          if [[ -n "$OUTPUT_NAME" && ! "$OUTPUT_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
-            echo "::error::output_name may contain only letters, numbers, dot, underscore and dash."
-            exit 1
-          fi
+          REQUEST_FILE="$RUNNER_TEMP/request.env"
+          bash builder/scripts/request-context.sh > "$REQUEST_FILE"
+          chmod 600 "$REQUEST_FILE"
+          source "$REQUEST_FILE"
 
           {
             echo "## iOS IPA Builder request"
             echo ""
+            echo "Request validated successfully."
+            echo ""
             echo "| Setting | Value |"
             echo "| --- | --- |"
-            echo "| Source | `$SOURCE_REPO` |"
-            echo "| Ref | `$SOURCE_REF` |"
-            echo "| Project | `$PROJECT_TYPE` |"
-            echo "| Mode | `$BUILD_MODE` |"
-            echo "| Output repository | `$OUTPUT_REPO` |"
+            echo "| Project type | `$PROJECT_TYPE` |"
+            echo "| Build mode | `$BUILD_MODE` |"
             echo "| Output visibility | `$OUTPUT_VISIBILITY` |"
-            echo "| Output | `${OUTPUT_NAME:-auto}` |"
+            echo "| Log mode | `$LOG_MODE` |"
+            echo ""
+            echo "> Repository names, refs and project paths are intentionally omitted from this public summary."
           } >> "$GITHUB_STEP_SUMMARY"
 
   inspect-source:
@@ -143,8 +113,6 @@ jobs:
     outputs:
       project_type: ${{ steps.detect.outputs.project_type }}
       detected_type: ${{ steps.detect.outputs.detected_type }}
-      project_root: ${{ steps.detect.outputs.project_root }}
-      marker: ${{ steps.detect.outputs.marker }}
     steps:
       - name: Checkout builder
         uses: actions/checkout@v4
@@ -152,71 +120,45 @@ jobs:
           path: builder
           persist-credentials: false
 
+      - name: Load private request context
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash builder/scripts/request-context.sh > "$RUNNER_TEMP/request.env"
+          chmod 600 "$RUNNER_TEMP/request.env"
+
       - name: Fetch application source
         shell: bash
         env:
-          SOURCE_REPO: ${{ inputs.source_repo }}
-          SOURCE_REF: ${{ inputs.source_ref }}
           SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
         run: |
           set -euo pipefail
-
-          rm -rf source
-          git init -q source
-          git -C source remote add origin "https://github.com/$SOURCE_REPO.git"
-
-          if [[ -n "$SOURCE_TOKEN" ]]; then
-            ASKPASS="$RUNNER_TEMP/ios-builder-git-askpass.sh"
-            cat > "$ASKPASS" <<'EOF'
-          #!/usr/bin/env bash
-          case "$1" in
-            *Username*) printf '%s\n' 'x-access-token' ;;
-            *Password*) printf '%s\n' "$SOURCE_TOKEN" ;;
-            *) printf '\n' ;;
-          esac
-          EOF
-            chmod 700 "$ASKPASS"
-            export GIT_ASKPASS="$ASKPASS"
-            export GIT_TERMINAL_PROMPT=0
-          fi
-
-          if ! git -C source fetch --quiet --depth=1 origin "$SOURCE_REF"; then
-            echo "::error::Unable to fetch $SOURCE_REPO at ref $SOURCE_REF."
-            echo "::error::For a private repository, add a fine-grained read-only token as SOURCE_TOKEN."
-            exit 30
-          fi
-
-          git -C source checkout --quiet --detach FETCH_HEAD
-          git -C source remote remove origin
-          rm -f "${ASKPASS:-}"
-          unset SOURCE_TOKEN GIT_ASKPASS GIT_TERMINAL_PROMPT
+          bash builder/scripts/fetch-source.sh source
 
       - name: Detect project type
         id: detect
         shell: bash
-        env:
-          REQUESTED_TYPE: ${{ inputs.project_type }}
-        run: bash builder/scripts/detect-project.sh source "$REQUESTED_TYPE"
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          DETECT_QUIET=1 \
+          DETECT_ENV_FILE="$RUNNER_TEMP/project.env" \
+            bash builder/scripts/detect-project.sh source "$PROJECT_TYPE" "$PROJECT_PATH"
 
       - name: Source summary
         shell: bash
-        env:
-          REQUESTED_TYPE: ${{ inputs.project_type }}
-          PROJECT_TYPE: ${{ steps.detect.outputs.project_type }}
-          DETECTED_TYPE: ${{ steps.detect.outputs.detected_type }}
-          PROJECT_ROOT: ${{ steps.detect.outputs.project_root }}
-          MARKER: ${{ steps.detect.outputs.marker }}
         run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/project.env"
           {
             echo "## Source inspection"
             echo ""
             echo "| Setting | Value |"
             echo "| --- | --- |"
-            echo "| Requested type | `$REQUESTED_TYPE` |"
             echo "| Detected type | `$DETECTED_TYPE` |"
-            echo "| Build type | `$PROJECT_TYPE` |"
-            echo "| Project root | `$PROJECT_ROOT` |"
-            echo "| Marker | `${MARKER:-none}` |"
+            echo "| Build type | `$DETECTED_PROJECT_TYPE` |"
+            echo ""
+            echo "> Source repository, branch and project path are hidden from public logs."
           } >> "$GITHUB_STEP_SUMMARY"
 
   build-unsigned:
@@ -224,10 +166,6 @@ jobs:
     needs: inspect-source
     if: ${{ inputs.build_mode == 'unsigned' }}
     runs-on: macos-latest
-    outputs:
-      ipa_name: ${{ steps.package.outputs.ipa_name }}
-      ipa_sha256: ${{ steps.package.outputs.ipa_sha256 }}
-      ipa_size: ${{ steps.package.outputs.ipa_size }}
     steps:
       - name: Checkout builder
         uses: actions/checkout@v4
@@ -235,20 +173,45 @@ jobs:
           path: builder
           persist-credentials: false
 
+      - name: Load private request context
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash builder/scripts/request-context.sh > "$RUNNER_TEMP/request.env"
+          chmod 600 "$RUNNER_TEMP/request.env"
+
+      - name: Fetch application source
+        shell: bash
+        env:
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/fetch-source.sh source
+
+      - name: Detect project
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          DETECT_QUIET=1 \
+          DETECT_ENV_FILE="$RUNNER_TEMP/project.env" \
+            bash builder/scripts/detect-project.sh source "$PROJECT_TYPE" "$PROJECT_PATH"
+
       - name: Setup Node.js 22 for Capacitor
-        if: ${{ needs.inspect-source.outputs.project_type == 'capacitor' }}
+        if: ${{ steps.detect.outputs.project_type == 'capacitor' }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
       - name: Setup Node.js 20 for React Native
-        if: ${{ needs.inspect-source.outputs.project_type == 'react-native' }}
+        if: ${{ steps.detect.outputs.project_type == 'react-native' }}
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install official Flutter SDK
-        if: ${{ needs.inspect-source.outputs.project_type == 'flutter' }}
+        if: ${{ steps.detect.outputs.project_type == 'flutter' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -257,57 +220,6 @@ jobs:
           git clone --quiet --depth=1 --branch stable https://github.com/flutter/flutter.git "$FLUTTER_DIR"
           echo "$FLUTTER_DIR/bin" >> "$GITHUB_PATH"
           "$FLUTTER_DIR/bin/flutter" --version
-
-      - name: Fetch application source
-        shell: bash
-        env:
-          SOURCE_REPO: ${{ inputs.source_repo }}
-          SOURCE_REF: ${{ inputs.source_ref }}
-          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          rm -rf source
-          git init -q source
-          git -C source remote add origin "https://github.com/$SOURCE_REPO.git"
-
-          if [[ -n "$SOURCE_TOKEN" ]]; then
-            ASKPASS="$RUNNER_TEMP/ios-builder-git-askpass.sh"
-            cat > "$ASKPASS" <<'EOF'
-          #!/usr/bin/env bash
-          case "$1" in
-            *Username*) printf '%s\n' 'x-access-token' ;;
-            *Password*) printf '%s\n' "$SOURCE_TOKEN" ;;
-            *) printf '\n' ;;
-          esac
-          EOF
-            chmod 700 "$ASKPASS"
-            export GIT_ASKPASS="$ASKPASS"
-            export GIT_TERMINAL_PROMPT=0
-          fi
-
-          if ! git -C source fetch --quiet --depth=1 origin "$SOURCE_REF"; then
-            echo "::error::Unable to fetch $SOURCE_REPO at ref $SOURCE_REF."
-            exit 60
-          fi
-
-          git -C source checkout --quiet --detach FETCH_HEAD
-          git -C source remote remove origin
-          rm -f "${ASKPASS:-}"
-          unset SOURCE_TOKEN GIT_ASKPASS GIT_TERMINAL_PROMPT
-
-      - name: Re-check project type
-        shell: bash
-        env:
-          REQUESTED_TYPE: ${{ inputs.project_type }}
-          EXPECTED_TYPE: ${{ needs.inspect-source.outputs.project_type }}
-        run: |
-          set -euo pipefail
-          ACTUAL_TYPE="$(bash builder/scripts/detect-project.sh source "$REQUESTED_TYPE" | awk -F: '/Build type/{gsub(/[[:space:]]/,"",$2);print $2}')"
-          if [[ "$ACTUAL_TYPE" != "$EXPECTED_TYPE" ]]; then
-            echo "::error::Project type changed between inspection and build."
-            exit 61
-          fi
 
       - name: Verify standard macOS runner
         shell: bash
@@ -319,60 +231,82 @@ jobs:
       - name: Build and package unsigned IPA
         id: package
         shell: bash
-        env:
-          PROJECT_TYPE: ${{ needs.inspect-source.outputs.project_type }}
-          PROJECT_ROOT: ${{ needs.inspect-source.outputs.project_root }}
-          SCHEME: ${{ inputs.scheme }}
-          OUTPUT_NAME: ${{ inputs.output_name }}
         run: |
           set -euo pipefail
-          bash builder/scripts/build-unsigned.sh source "$PROJECT_TYPE" "$PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME"
+          source "$RUNNER_TEMP/request.env"
+          source "$RUNNER_TEMP/project.env"
+          export BUILD_ENV_FILE="$RUNNER_TEMP/build.env"
+
+          if [[ "$LOG_MODE" == "private" ]]; then
+            if ! bash builder/scripts/build-unsigned.sh \
+              source "$DETECTED_PROJECT_TYPE" "$DETECTED_PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME" \
+              > "$RUNNER_TEMP/private-build.log" 2>&1; then
+              echo "::error::Build failed. Detailed build output was hidden because Private logs are enabled."
+              exit 160
+            fi
+          else
+            bash builder/scripts/build-unsigned.sh \
+              source "$DETECTED_PROJECT_TYPE" "$DETECTED_PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME"
+          fi
 
       - name: Deliver IPA to configured release
         id: deliver
         shell: bash
         env:
-          OUTPUT_REPO: ${{ inputs.output_repo }}
           OUTPUT_TOKEN: ${{ secrets.OUTPUT_TOKEN }}
-          OUTPUT_VISIBILITY: ${{ inputs.output_visibility }}
-          IPA_PATH: ${{ steps.package.outputs.ipa_path }}
         run: |
           set -euo pipefail
-          bash builder/scripts/deliver-release.sh "$IPA_PATH"
+          source "$RUNNER_TEMP/request.env"
+          source "$RUNNER_TEMP/build.env"
+
+          if [[ "$LOG_MODE" == "private" ]]; then
+            if ! bash builder/scripts/deliver-release.sh "$IPA_PATH" > "$RUNNER_TEMP/private-delivery.log" 2>&1; then
+              echo "::error::IPA delivery failed. Details were hidden because Private logs are enabled."
+              exit 161
+            fi
+          else
+            bash builder/scripts/deliver-release.sh "$IPA_PATH"
+          fi
 
       - name: Build summary
         shell: bash
-        env:
-          IPA_NAME: ${{ steps.package.outputs.ipa_name }}
-          IPA_SIZE: ${{ steps.package.outputs.ipa_size }}
-          IPA_SHA256: ${{ steps.package.outputs.ipa_sha256 }}
-          RELEASE_TAG: ${{ steps.deliver.outputs.release_tag }}
         run: |
-          {
-            echo "## Unsigned IPA built"
-            echo ""
-            echo "| Item | Value |"
-            echo "| --- | --- |"
-            echo "| File | `$IPA_NAME` |"
-            echo "| Size | `$IPA_SIZE` |"
-            echo "| SHA-256 | `$IPA_SHA256` |"
-            echo "| Signing | `unsigned / CODE_SIGNING_ALLOWED=NO` |"
-            echo "| Delivery | `${{ inputs.output_visibility }} GitHub Release` |"
-            echo "| Release tag | `$RELEASE_TAG` |"
-            echo ""
-            echo "> No IPA was stored as a public Actions artifact."
-          } >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          source "$RUNNER_TEMP/build.env"
+
+          if [[ "$LOG_MODE" == "private" ]]; then
+            {
+              echo "## Unsigned IPA built"
+              echo ""
+              echo "Build and configured GitHub Release delivery completed successfully."
+              echo ""
+              echo "> Detailed source/build metadata is hidden because Private logs are enabled."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## Unsigned IPA built"
+              echo ""
+              echo "| Item | Value |"
+              echo "| --- | --- |"
+              echo "| File | `$IPA_NAME` |"
+              echo "| Size | `$IPA_SIZE` |"
+              echo "| SHA-256 | `$IPA_SHA256` |"
+              echo "| Signing | `unsigned / CODE_SIGNING_ALLOWED=NO` |"
+              echo "| Delivery | `$OUTPUT_VISIBILITY GitHub Release` |"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Remove private transient logs
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/private-build.log" "$RUNNER_TEMP/private-delivery.log" "$RUNNER_TEMP/request.env" "$RUNNER_TEMP/project.env" "$RUNNER_TEMP/build.env"
 
   build-app-store:
     name: Build App Store IPA
     needs: inspect-source
     if: ${{ inputs.build_mode == 'app-store' }}
     runs-on: macos-latest
-    outputs:
-      ipa_name: ${{ steps.package.outputs.ipa_name }}
-      ipa_sha256: ${{ steps.package.outputs.ipa_sha256 }}
-      ipa_size: ${{ steps.package.outputs.ipa_size }}
-      bundle_id: ${{ steps.package.outputs.bundle_id }}
     steps:
       - name: Checkout builder
         uses: actions/checkout@v4
@@ -380,20 +314,45 @@ jobs:
           path: builder
           persist-credentials: false
 
+      - name: Load private request context
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash builder/scripts/request-context.sh > "$RUNNER_TEMP/request.env"
+          chmod 600 "$RUNNER_TEMP/request.env"
+
+      - name: Fetch application source
+        shell: bash
+        env:
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/fetch-source.sh source
+
+      - name: Detect project
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          DETECT_QUIET=1 \
+          DETECT_ENV_FILE="$RUNNER_TEMP/project.env" \
+            bash builder/scripts/detect-project.sh source "$PROJECT_TYPE" "$PROJECT_PATH"
+
       - name: Setup Node.js 22 for Capacitor
-        if: ${{ needs.inspect-source.outputs.project_type == 'capacitor' }}
+        if: ${{ steps.detect.outputs.project_type == 'capacitor' }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
       - name: Setup Node.js 20 for React Native
-        if: ${{ needs.inspect-source.outputs.project_type == 'react-native' }}
+        if: ${{ steps.detect.outputs.project_type == 'react-native' }}
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install official Flutter SDK
-        if: ${{ needs.inspect-source.outputs.project_type == 'flutter' }}
+        if: ${{ steps.detect.outputs.project_type == 'flutter' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -402,57 +361,6 @@ jobs:
           git clone --quiet --depth=1 --branch stable https://github.com/flutter/flutter.git "$FLUTTER_DIR"
           echo "$FLUTTER_DIR/bin" >> "$GITHUB_PATH"
           "$FLUTTER_DIR/bin/flutter" --version
-
-      - name: Fetch application source
-        shell: bash
-        env:
-          SOURCE_REPO: ${{ inputs.source_repo }}
-          SOURCE_REF: ${{ inputs.source_ref }}
-          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          rm -rf source
-          git init -q source
-          git -C source remote add origin "https://github.com/$SOURCE_REPO.git"
-
-          if [[ -n "$SOURCE_TOKEN" ]]; then
-            ASKPASS="$RUNNER_TEMP/ios-builder-git-askpass.sh"
-            cat > "$ASKPASS" <<'EOF'
-          #!/usr/bin/env bash
-          case "$1" in
-            *Username*) printf '%s\n' 'x-access-token' ;;
-            *Password*) printf '%s\n' "$SOURCE_TOKEN" ;;
-            *) printf '\n' ;;
-          esac
-          EOF
-            chmod 700 "$ASKPASS"
-            export GIT_ASKPASS="$ASKPASS"
-            export GIT_TERMINAL_PROMPT=0
-          fi
-
-          if ! git -C source fetch --quiet --depth=1 origin "$SOURCE_REF"; then
-            echo "::error::Unable to fetch $SOURCE_REPO at ref $SOURCE_REF."
-            exit 130
-          fi
-
-          git -C source checkout --quiet --detach FETCH_HEAD
-          git -C source remote remove origin
-          rm -f "${ASKPASS:-}"
-          unset SOURCE_TOKEN GIT_ASKPASS GIT_TERMINAL_PROMPT
-
-      - name: Re-check project type
-        shell: bash
-        env:
-          REQUESTED_TYPE: ${{ inputs.project_type }}
-          EXPECTED_TYPE: ${{ needs.inspect-source.outputs.project_type }}
-        run: |
-          set -euo pipefail
-          ACTUAL_TYPE="$(bash builder/scripts/detect-project.sh source "$REQUESTED_TYPE" | awk -F: '/Build type/{gsub(/[[:space:]]/,"",$2);print $2}')"
-          if [[ "$ACTUAL_TYPE" != "$EXPECTED_TYPE" ]]; then
-            echo "::error::Project type changed between inspection and build."
-            exit 131
-          fi
 
       - name: Verify standard macOS runner
         shell: bash
@@ -473,7 +381,6 @@ jobs:
           bash builder/scripts/validate-signing.sh
 
       - name: Install temporary signing environment
-        id: signing
         shell: bash
         env:
           APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
@@ -488,15 +395,25 @@ jobs:
         id: package
         shell: bash
         env:
-          PROJECT_TYPE: ${{ needs.inspect-source.outputs.project_type }}
-          PROJECT_ROOT: ${{ needs.inspect-source.outputs.project_root }}
-          SCHEME: ${{ inputs.scheme }}
-          OUTPUT_NAME: ${{ inputs.output_name }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
         run: |
           set -euo pipefail
-          bash builder/scripts/build-app-store.sh source "$PROJECT_TYPE" "$PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME"
+          source "$RUNNER_TEMP/request.env"
+          source "$RUNNER_TEMP/project.env"
+          source "$RUNNER_TEMP/ios-ipa-builder-signing/signing.env"
+          export BUILD_ENV_FILE="$RUNNER_TEMP/build.env"
+
+          if [[ "$LOG_MODE" == "private" ]]; then
+            if ! bash builder/scripts/build-app-store.sh \
+              source "$DETECTED_PROJECT_TYPE" "$DETECTED_PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME" \
+              > "$RUNNER_TEMP/private-build.log" 2>&1; then
+              echo "::error::Signed build failed. Detailed build output was hidden because Private logs are enabled."
+              exit 170
+            fi
+          else
+            bash builder/scripts/build-app-store.sh \
+              source "$DETECTED_PROJECT_TYPE" "$DETECTED_PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME"
+          fi
 
       - name: Cleanup temporary signing environment
         if: ${{ always() }}
@@ -505,45 +422,57 @@ jobs:
 
       - name: Deliver signed IPA to configured release
         if: ${{ success() }}
-        id: deliver
         shell: bash
         env:
-          OUTPUT_REPO: ${{ inputs.output_repo }}
           OUTPUT_TOKEN: ${{ secrets.OUTPUT_TOKEN }}
-          OUTPUT_VISIBILITY: ${{ inputs.output_visibility }}
-          IPA_PATH: ${{ steps.package.outputs.ipa_path }}
         run: |
           set -euo pipefail
-          bash builder/scripts/deliver-release.sh "$IPA_PATH"
+          source "$RUNNER_TEMP/request.env"
+          source "$RUNNER_TEMP/build.env"
+
+          if [[ "$LOG_MODE" == "private" ]]; then
+            if ! bash builder/scripts/deliver-release.sh "$IPA_PATH" > "$RUNNER_TEMP/private-delivery.log" 2>&1; then
+              echo "::error::IPA delivery failed. Details were hidden because Private logs are enabled."
+              exit 171
+            fi
+          else
+            bash builder/scripts/deliver-release.sh "$IPA_PATH"
+          fi
 
       - name: App Store build summary
         if: ${{ success() }}
         shell: bash
-        env:
-          IPA_NAME: ${{ steps.package.outputs.ipa_name }}
-          IPA_SIZE: ${{ steps.package.outputs.ipa_size }}
-          IPA_SHA256: ${{ steps.package.outputs.ipa_sha256 }}
-          BUNDLE_ID: ${{ steps.package.outputs.bundle_id }}
-          EXPORT_METHOD: ${{ steps.package.outputs.export_method }}
-          PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
-          PROFILE_EXPIRES: ${{ steps.signing.outputs.profile_expires }}
-          RELEASE_TAG: ${{ steps.deliver.outputs.release_tag }}
         run: |
-          {
-            echo "## App Store / TestFlight IPA built"
-            echo ""
-            echo "| Item | Value |"
-            echo "| --- | --- |"
-            echo "| File | `$IPA_NAME` |"
-            echo "| Bundle ID | `$BUNDLE_ID` |"
-            echo "| Size | `$IPA_SIZE` |"
-            echo "| SHA-256 | `$IPA_SHA256` |"
-            echo "| Export method | `$EXPORT_METHOD` |"
-            echo "| Provisioning profile | `$PROFILE_NAME` |"
-            echo "| Profile expires | `$PROFILE_EXPIRES` |"
-            echo "| Delivery | `${{ inputs.output_visibility }} GitHub Release` |"
-            echo "| Release tag | `$RELEASE_TAG` |"
-            echo ""
-            echo "> The IPA was signed for App Store/TestFlight distribution but was not uploaded to App Store Connect."
-          } >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          source "$RUNNER_TEMP/build.env"
 
+          if [[ "$LOG_MODE" == "private" ]]; then
+            {
+              echo "## App Store / TestFlight IPA built"
+              echo ""
+              echo "Signed build and configured GitHub Release delivery completed successfully."
+              echo ""
+              echo "> Detailed source/build metadata is hidden because Private logs are enabled."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## App Store / TestFlight IPA built"
+              echo ""
+              echo "| Item | Value |"
+              echo "| --- | --- |"
+              echo "| File | `$IPA_NAME` |"
+              echo "| Bundle ID | `$BUNDLE_ID` |"
+              echo "| Size | `$IPA_SIZE` |"
+              echo "| SHA-256 | `$IPA_SHA256` |"
+              echo "| Export method | `$EXPORT_METHOD` |"
+              echo "| Delivery | `$OUTPUT_VISIBILITY GitHub Release` |"
+              echo ""
+              echo "> The IPA was not uploaded to App Store Connect."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Remove private transient logs
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/private-build.log" "$RUNNER_TEMP/private-delivery.log" "$RUNNER_TEMP/request.env" "$RUNNER_TEMP/project.env" "$RUNNER_TEMP/build.env"
