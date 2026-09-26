@@ -39,23 +39,25 @@ This repository is public and contains only build infrastructure.
 - The source token is used only while fetching the selected source and is not persisted in its Git configuration.
 - Public users should fork this repository and configure their own secrets in their fork.
 - Source inspection does not execute code from the selected application.
-- Unsigned IPA output is delivered only to a repository configured through private secrets.
-- The builder verifies that the destination repository is private before uploading the IPA.
+- Unsigned IPA output can be delivered to either a private or public repository.
+- Private is the default. The builder verifies that the destination repository visibility matches the selected output mode before uploading the IPA.
 - No IPA is stored as a GitHub Actions artifact or cache.
 - Build jobs are restricted to standard GitHub-hosted runners; larger/xlarge/custom/self-hosted runner labels are intentionally blocked.
 
-## Private IPA delivery
+## IPA delivery
+
+Choose `Private` or `Public` in the workflow. Private is the default.
 
 Configure these repository secrets in your builder repository or fork:
 
-- `OUTPUT_REPO` — target private repository in `owner/repo` format.
+- `OUTPUT_REPO` — target repository in `owner/repo` format.
 - `OUTPUT_TOKEN` — fine-grained token with permission to create releases and upload assets in that target repository.
 
 For private application source repositories also configure:
 
 - `SOURCE_TOKEN` — fine-grained read-only token for the source repository.
 
-The output repository must already exist and must be private. Each successful build creates a unique prerelease with the IPA attached. If the destination is public, delivery is blocked.
+The output repository must already exist. Each successful build creates a unique prerelease with the IPA attached. If the selected visibility does not match the actual repository visibility, delivery is blocked.
 
 ## Current stage
 
