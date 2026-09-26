@@ -4,7 +4,7 @@ set -euo pipefail
 DEST="${1:-source}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-eval "$("$SCRIPT_DIR/request-context.sh")"
+eval "$(bash "$SCRIPT_DIR/request-context.sh")"
 
 rm -rf "$DEST"
 git init -q "$DEST"
@@ -29,14 +29,22 @@ fi
 FETCH_LOG="${RUNNER_TEMP:-/tmp}/ios-builder-fetch.log"
 rm -f "$FETCH_LOG"
 
+friendly_fetch_error() {
+  if [[ -z "${SOURCE_TOKEN:-}" ]]; then
+    echo "::error::The source could not be opened. If this is a private project, add SOURCE_TOKEN in Settings → Secrets and variables → Actions."
+  else
+    echo "::error::The source could not be opened. Check the repository, branch/tag and SOURCE_TOKEN access."
+  fi
+}
+
 if [[ -n "$SOURCE_REF" ]]; then
   if ! git -C "$DEST" fetch --quiet --depth=1 origin "$SOURCE_REF" > /dev/null 2>"$FETCH_LOG"; then
-    echo "::error::Unable to fetch the selected source repository/ref."
+    friendly_fetch_error
     exit 150
   fi
 else
   if ! git -C "$DEST" fetch --quiet --depth=1 origin HEAD > /dev/null 2>"$FETCH_LOG"; then
-    echo "::error::Unable to fetch the selected source repository."
+    friendly_fetch_error
     exit 151
   fi
 fi
