@@ -39,8 +39,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -REni 'runs-on:.*(large|xlarge|self-hosted|runner-group)' .github/workflows; then
-            echo "::error::Only standard GitHub-hosted runners are allowed."
+          INVALID="$(grep -REn '^[[:space:]]{4}runs-on:' .github/workflows | grep -Ev 'runs-on:[[:space:]]*(ubuntu-latest|macos-latest)[[:space:]]*
+      - name: Confirm no Actions artifact or cache storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -REni 'actions/(upload-artifact|cache)@' .github/workflows; then
+            echo "::error::Actions artifact/cache storage is intentionally disabled for this builder."
+            exit 1
+          fi
+ || true)"
+          if [[ -n "$INVALID" ]]; then
+            echo "$INVALID"
+            echo "::error::Only ubuntu-latest and macos-latest standard GitHub-hosted runners are allowed."
             exit 1
           fi
 
