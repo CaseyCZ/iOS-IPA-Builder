@@ -15,10 +15,10 @@ permissions:
 jobs:
   shell-checks:
     name: Validate builder scripts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout builder
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
 
           INVALID="$(grep -REn '^[ ]{4}runs-on:' .github/workflows \
-            | grep -v 'runs-on: ubuntu-latest' \
+            | grep -v 'runs-on: ubuntu-24.04' \
             | grep -v 'runs-on: macos-latest' \
             | grep -Fv 'runs-on: ${{ inputs.xcode_runner }}' \
             || true)"
