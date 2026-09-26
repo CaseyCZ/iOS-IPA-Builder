@@ -319,6 +319,18 @@ export_ipa() {
   sha="$(shasum -a 256 "$final_path" | awk '{print $1}')"
   size="$(du -h "$final_path" | awk '{print $1}')"
 
+  if [[ -n "${BUILD_ENV_FILE:-}" ]]; then
+    {
+      printf 'IPA_PATH=%q\n' "$final_path"
+      printf 'IPA_NAME=%q\n' "$(basename "$final_path")"
+      printf 'IPA_SHA256=%q\n' "$sha"
+      printf 'IPA_SIZE=%q\n' "$size"
+      printf 'BUNDLE_ID=%q\n' "$BUNDLE_ID"
+      printf 'EXPORT_METHOD=%q\n' "$EXPORT_METHOD"
+    } > "$BUILD_ENV_FILE"
+    chmod 600 "$BUILD_ENV_FILE"
+  fi
+
   if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
     {
       echo "ipa_path=$final_path"
