@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -7,218 +7,238 @@
   <title>iOS IPA Builder</title>
   <meta name="description" content="Build unsigned or App Store-ready iOS IPA packages with GitHub Actions.">
   <style>
-    :root {
-      --bg:#07111f;
-      --panel:#0d1a2b;
-      --panel-2:#111f33;
-      --text:#f4f7fb;
-      --muted:#9fb0c7;
-      --line:#22354f;
-      --accent:#4f8cff;
-      --accent-2:#7ea8ff;
-      --ok:#39d98a;
-      --shadow:0 24px 70px rgba(0,0,0,.28);
-      --radius:22px;
+    :root{
+      color-scheme:dark;
+      --page:#070b14;--bg:#0b1020;--panel:#111827;--panel2:#172033;--input:#0b1220;
+      --border:#2a3850;--text:#f8fafc;--muted:#94a3b8;--accent:#38bdf8;--accent2:#0284c7;
+      --action:#0376b5;--action2:#075985;--accent-soft:#0f2b45;--ok:#86efac;
+      --shadow:0 18px 48px rgba(0,0,0,.34);--hero:#172554
+    }
+    html[data-theme="light"]{
+      color-scheme:light;
+      --page:#eef3f8;--bg:#f8fafc;--panel:#fff;--panel2:#f1f5f9;--input:#f8fafc;
+      --border:#d7e0eb;--text:#0f172a;--muted:#64748b;--accent:#0369a1;--accent2:#075985;
+      --accent-soft:#e0f2fe;--ok:#15803d;--shadow:0 15px 38px rgba(15,23,42,.09);--hero:#dbeafe
     }
     *{box-sizing:border-box}
-    html{scroll-behavior:smooth}
+    html{scroll-behavior:smooth;background:var(--page)}
     body{
-      margin:0;
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
-      color:var(--text);
-      background:
-        radial-gradient(circle at 15% 0%,rgba(79,140,255,.18),transparent 34%),
-        radial-gradient(circle at 100% 20%,rgba(57,217,138,.08),transparent 26%),
-        var(--bg);
-      line-height:1.55;
+      margin:0;min-height:100vh;color:var(--text);
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+      background:radial-gradient(circle at 50% -10%,var(--hero),var(--bg) 38%,var(--page) 76%);
+      transition:background .18s,color .18s
     }
-    a{color:inherit;text-decoration:none}
-    .wrap{width:min(1120px,calc(100% - 36px));margin:auto}
-    nav{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:24px 0;
-    }
-    .brand{display:flex;align-items:center;gap:12px;font-weight:750;letter-spacing:-.02em}
-    .logo{
-      width:38px;height:38px;border-radius:12px;
-      display:grid;place-items:center;
-      background:linear-gradient(145deg,var(--accent),#6b5cff);
-      box-shadow:0 10px 28px rgba(79,140,255,.28);
-      font-weight:900;
-    }
-    .nav-actions{display:flex;gap:10px;align-items:center}
-    .button{
-      display:inline-flex;align-items:center;justify-content:center;gap:8px;
-      min-height:44px;padding:0 16px;border-radius:13px;
-      border:1px solid var(--line);background:rgba(255,255,255,.03);
-      font-weight:700;
-    }
-    .button.primary{
-      border-color:transparent;
-      background:linear-gradient(135deg,var(--accent),#6f68ff);
-      box-shadow:0 12px 28px rgba(79,140,255,.22);
-    }
-    .hero{padding:84px 0 58px;text-align:center}
-    .eyebrow{
-      display:inline-flex;gap:8px;align-items:center;
-      border:1px solid rgba(126,168,255,.22);
-      background:rgba(79,140,255,.08);
-      color:var(--accent-2);padding:7px 12px;border-radius:999px;font-size:14px;font-weight:700;
-    }
-    h1{
-      font-size:clamp(44px,7vw,82px);
-      letter-spacing:-.055em;line-height:.98;
-      margin:22px auto 20px;max-width:850px;
-    }
-    .lead{
-      color:var(--muted);font-size:clamp(18px,2.2vw,23px);
-      max-width:760px;margin:0 auto 30px;
-    }
-    .hero-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-    .mock{
-      margin:58px auto 0;
-      border:1px solid var(--line);border-radius:26px;
-      background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015));
-      box-shadow:var(--shadow);overflow:hidden;text-align:left;
-      max-width:900px;
-    }
-    .mock-top{
-      display:flex;gap:7px;padding:13px 16px;border-bottom:1px solid var(--line);
-      background:rgba(255,255,255,.025)
-    }
-    .dot{width:9px;height:9px;border-radius:50%;background:#3a4a61}
-    .mock-body{padding:26px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
-    .field{padding:14px 15px;border:1px solid var(--line);border-radius:14px;background:#0a1626}
-    .field small{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}
-    .field strong{font-size:15px}
-    section{padding:70px 0}
-    .section-title{font-size:36px;letter-spacing:-.04em;margin:0 0 10px}
-    .section-copy{color:var(--muted);max-width:680px;margin:0 0 28px}
-    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
-    .card{
-      border:1px solid var(--line);border-radius:var(--radius);
-      padding:24px;background:linear-gradient(180deg,var(--panel),rgba(13,26,43,.72));
-    }
-    .card h3{margin:10px 0 8px;font-size:21px}
-    .card p{margin:0;color:var(--muted)}
-    .icon{
-      width:42px;height:42px;border-radius:13px;display:grid;place-items:center;
-      border:1px solid var(--line);background:var(--panel-2);font-weight:800;color:var(--accent-2)
-    }
-    .flow{
-      display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:stretch;
-    }
-    .step{
-      border:1px solid var(--line);border-radius:18px;padding:20px;background:var(--panel);
-      min-height:132px
-    }
-    .step b{display:block;margin:8px 0 6px}
-    .step span{color:var(--muted);font-size:14px}
-    .num{color:var(--accent-2);font-size:13px;font-weight:800}
-    .chips{display:flex;gap:10px;flex-wrap:wrap}
-    .chip{
-      padding:9px 13px;border-radius:999px;border:1px solid var(--line);
-      background:rgba(255,255,255,.025);font-weight:650;color:#d8e3f2
-    }
-    .notice{
-      margin-top:18px;padding:16px 18px;border:1px solid rgba(57,217,138,.18);
-      background:rgba(57,217,138,.055);border-radius:16px;color:#c9f6df
-    }
-    footer{
-      margin-top:38px;padding:30px 0 44px;border-top:1px solid var(--line);
-      color:var(--muted);font-size:14px
-    }
-    @media(max-width:760px){
-      .hero{padding-top:54px}
-      .mock-body,.grid,.flow{grid-template-columns:1fr}
-      .nav-actions .button:first-child{display:none}
-      h1{font-size:48px}
-    }
+    a{color:inherit;text-decoration:none}button{font:inherit}.wrap{width:min(1180px,calc(100% - 32px));margin:auto}
+    .topbar{position:sticky;top:0;z-index:100;border-bottom:1px solid color-mix(in srgb,var(--border) 75%,transparent);background:color-mix(in srgb,var(--page) 78%,transparent);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+    .topbar-inner{min-height:68px;display:flex;align-items:center;gap:18px}
+    .brand{display:flex;align-items:center;gap:11px;font-weight:900;letter-spacing:-.03em}
+    .brand-mark{width:39px;height:39px;border-radius:12px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--action2),var(--action));box-shadow:0 10px 28px rgba(14,165,233,.23);font-size:11px}
+    .brand small{display:block;color:var(--muted);font-size:10px;letter-spacing:.05em;margin-top:1px}
+    .nav{display:flex;align-items:center;gap:4px;margin-left:auto}
+    .nav a{padding:9px 10px;border-radius:9px;color:var(--muted);font-size:12px;font-weight:800}.nav a:hover{background:var(--panel2);color:var(--text)}
+    .nav-actions{display:flex;align-items:center;gap:7px}
+    .icon-btn,.compact-btn{height:38px;border:1px solid var(--border);background:color-mix(in srgb,var(--panel) 90%,transparent);border-radius:10px;color:var(--text)}
+    .icon-btn{width:38px;display:grid;place-items:center;cursor:pointer;font-size:18px}.compact-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 11px;font-size:11px;font-weight:850}
+    .icon-btn:hover,.compact-btn:hover{border-color:var(--accent)}
+    .settings-panel{position:fixed;z-index:500;display:none;width:310px;max-height:calc(100vh - 90px);overflow:auto;padding:15px;border:1px solid var(--border);border-radius:18px;background:color-mix(in srgb,var(--panel) 98%,transparent);box-shadow:0 28px 90px rgba(0,0,0,.45);backdrop-filter:blur(18px)}
+    .settings-panel.open{display:block}.settings-title{font-weight:900;font-size:18px;margin-bottom:14px;letter-spacing:-.03em}
+    .settings-label{margin:14px 0 7px;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.08em}
+    .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    .seg button,.lang-item{border:1px solid var(--border);background:var(--input);color:var(--muted);border-radius:10px;cursor:pointer;font-weight:850}
+    .seg button{height:39px}.seg button.active,.lang-item.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+    .lang-list{display:grid;gap:6px}.lang-item{min-height:40px;padding:0 11px;display:flex;align-items:center;gap:10px;text-align:left}.lang-item span:first-child{font-size:18px}.lang-item small{margin-left:auto;font-size:9px;color:var(--muted)}
+    .report-link{margin-top:12px;display:flex;align-items:center;justify-content:center;min-height:39px;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:11px;font-weight:850}.report-link:hover{border-color:var(--accent);color:var(--text)}
+    .hero{padding:78px 0 46px;text-align:center}.eyebrow{display:inline-flex;align-items:center;gap:8px;border:1px solid color-mix(in srgb,var(--accent) 55%,var(--border));background:var(--accent-soft);color:var(--accent);padding:7px 12px;border-radius:999px;font-size:11px;font-weight:900;letter-spacing:.04em}
+    .hero h1{font-size:clamp(43px,8vw,82px);line-height:.96;letter-spacing:-.065em;margin:22px auto 18px;max-width:900px}.hero p{max-width:760px;margin:0 auto;color:var(--muted);font-size:clamp(15px,2vw,19px);line-height:1.6}
+    .hero-actions{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;margin-top:25px}
+    .btn{min-height:42px;border:1px solid var(--border);border-radius:11px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:900;transition:transform .15s,border-color .15s}.btn:hover{transform:translateY(-1px)}.btn.primary{background:linear-gradient(135deg,var(--action2),var(--action));border-color:var(--action);color:#fff}.btn.secondary{background:var(--panel);color:var(--text)}
+    .builder-preview{max-width:900px;margin:38px auto 0;padding:15px;border:1px solid var(--border);border-radius:18px;background:color-mix(in srgb,var(--panel) 94%,transparent);box-shadow:var(--shadow)}
+    .builder-head{display:flex;align-items:center;gap:7px;padding-bottom:12px;border-bottom:1px solid var(--border)}.dot{width:9px;height:9px;border-radius:50%;background:var(--border)}.builder-title{margin-left:7px;font-size:10px;font-weight:850;color:var(--muted)}
+    .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;padding-top:13px}.field{padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--input);text-align:left}.field small{display:block;color:var(--muted);font-size:9px;font-weight:800;margin-bottom:4px}.field strong{font-size:12px}
+    .section{padding:34px 0}.section-head{text-align:center;margin-bottom:16px}.section-head h2{margin:0;font-size:29px;letter-spacing:-.04em}.section-head p{margin:5px auto 0;color:var(--muted);font-size:13px;line-height:1.55;max-width:720px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.card{padding:20px;border:1px solid var(--border);border-radius:16px;background:color-mix(in srgb,var(--panel) 96%,transparent);box-shadow:var(--shadow);text-align:center}.card-icon{width:42px;height:42px;margin:auto;border:1px solid var(--border);border-radius:12px;background:var(--input);display:grid;place-items:center;font-weight:900;color:var(--accent)}.card h3{margin:11px 0 6px;font-size:17px}.card p{margin:0;color:var(--muted);font-size:11px;line-height:1.55}
+    .flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.step{padding:17px;border:1px solid var(--border);border-radius:14px;background:var(--panel);text-align:center}.step-num{color:var(--accent);font-size:9px;font-weight:900}.step strong{display:block;margin:6px 0 4px;font-size:13px}.step span{color:var(--muted);font-size:10px;line-height:1.45}
+    .chips{display:flex;justify-content:center;gap:7px;flex-wrap:wrap}.chip{padding:7px 10px;border:1px solid var(--border);border-radius:999px;background:var(--input);color:var(--muted);font-size:10px;font-weight:850}
+    .notice{margin-top:14px;padding:13px 14px;border:1px solid var(--border);border-radius:13px;background:var(--panel2);color:var(--muted);font-size:11px;line-height:1.55;text-align:center}.notice strong{color:var(--text)}
+    .footer{margin-top:38px;border-top:1px solid var(--border);padding:24px 0 36px;color:var(--muted);font-size:10px;text-align:center}.footer a:hover{color:var(--accent)}
+    @media(max-width:900px){.nav{display:none}.flow{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:640px){.wrap{width:min(100% - 20px,1180px)}.topbar-inner{gap:8px}.brand small{display:none}.compact-btn{display:none}.hero{padding:54px 0 30px}.hero h1{font-size:clamp(40px,14vw,61px)}.grid,.form-grid,.flow{grid-template-columns:1fr}.section{padding:25px 0}}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <nav>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
       <a class="brand" href="#">
-        <span class="logo">IPA</span>
-        <span>iOS IPA Builder</span>
+        <div class="brand-mark">IPA</div>
+        <div>iOS IPA Builder<small data-i18n="brandSub">GitHub Actions build tool</small></div>
       </a>
+      <nav class="nav">
+        <a href="#modes" data-i18n="navModes">Build modes</a>
+        <a href="#how" data-i18n="navHow">How it works</a>
+        <a href="#support" data-i18n="navSupport">Supported</a>
+      </nav>
       <div class="nav-actions">
-        <a class="button" href="https://github.com/CaseyCZ/iOS-IPA-Builder">GitHub</a>
-        <a class="button primary" href="https://github.com/CaseyCZ/iOS-IPA-Builder/actions/workflows/build-ios.yml">Run Builder</a>
+        <a class="compact-btn" href="https://github.com/CaseyCZ/iOS-IPA-Builder" target="_blank" rel="noopener">GitHub</a>
+        <a class="compact-btn" href="https://github.com/CaseyCZ/iOS-IPA-Builder/actions/workflows/build-ios.yml" target="_blank" rel="noopener" data-i18n="run">Run Builder</a>
+        <button id="settingsButton" class="icon-btn" type="button" aria-label="Settings" aria-expanded="false">⚙</button>
       </div>
-    </nav>
+    </div>
+  </header>
 
-    <main>
-      <section class="hero">
-        <div class="eyebrow">GitHub Actions · macOS · Xcode</div>
-        <h1>Build an iOS IPA without a local Mac.</h1>
-        <p class="lead">
-          A small open-source build tool for creating clean unsigned IPA packages
-          or App Store/TestFlight-ready signed IPA files directly on GitHub.
-        </p>
-        <div class="hero-actions">
-          <a class="button primary" href="https://github.com/CaseyCZ/iOS-IPA-Builder/actions/workflows/build-ios.yml">Run iOS IPA Builder</a>
-          <a class="button" href="https://github.com/CaseyCZ/iOS-IPA-Builder#readme">View setup</a>
-        </div>
-
-        <div class="mock" aria-label="Builder workflow preview">
-          <div class="mock-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-          <div class="mock-body">
-            <div class="field"><small>Source repository</small><strong>owner/my-ios-app</strong></div>
-            <div class="field"><small>Project type</small><strong>Auto detect</strong></div>
-            <div class="field"><small>Build mode</small><strong>Unsigned IPA</strong></div>
-            <div class="field"><small>Output</small><strong>Public or Private Release</strong></div>
-          </div>
-        </div>
-      </section>
-
-      <section>
-        <h2 class="section-title">Two build modes</h2>
-        <p class="section-copy">Use the same workflow for sideloading builds or a normal Apple distribution build.</p>
-        <div class="grid">
-          <article class="card">
-            <div class="icon">01</div>
-            <h3>Unsigned IPA</h3>
-            <p>Creates a clean Release build with code signing disabled, then packages the app as a standard IPA for signing elsewhere.</p>
-          </article>
-          <article class="card">
-            <div class="icon">02</div>
-            <h3>App Store / TestFlight</h3>
-            <p>Uses your own Apple Distribution certificate and provisioning profile to create a signed IPA. Upload to Apple stays manual.</p>
-          </article>
-        </div>
-      </section>
-
-      <section>
-        <h2 class="section-title">How it works</h2>
-        <p class="section-copy">The builder is a GitHub workflow, not a desktop app. GitHub starts a macOS runner and does the build remotely.</p>
-        <div class="flow">
-          <div class="step"><span class="num">STEP 1</span><b>Select source</b><span>Choose repository, branch or tag.</span></div>
-          <div class="step"><span class="num">STEP 2</span><b>Detect project</b><span>Xcode, Capacitor, Flutter or React Native.</span></div>
-          <div class="step"><span class="num">STEP 3</span><b>Build on macOS</b><span>Xcode creates the unsigned or signed IPA.</span></div>
-          <div class="step"><span class="num">STEP 4</span><b>Deliver release</b><span>Save the IPA to a public or private GitHub Release.</span></div>
-        </div>
-      </section>
-
-      <section>
-        <h2 class="section-title">Supported projects</h2>
-        <p class="section-copy">Auto detection is the default, with manual override available when needed.</p>
-        <div class="chips">
-          <span class="chip">Native Xcode</span>
-          <span class="chip">Capacitor</span>
-          <span class="chip">Flutter</span>
-          <span class="chip">React Native</span>
-        </div>
-        <div class="notice">
-          Standard GitHub-hosted runners only. No larger runner configuration, no Actions artifact storage, and no automatic App Store Connect upload.
-        </div>
-      </section>
-    </main>
-
-    <footer>
-      iOS IPA Builder · Open-source GitHub Actions build tool
-    </footer>
+  <div id="settingsPanel" class="settings-panel" aria-hidden="true">
+    <div class="settings-title" data-i18n="settings">Settings</div>
+    <div class="settings-label" data-i18n="appearance">APPEARANCE</div>
+    <div class="seg">
+      <button type="button" data-theme-choice="dark">☾ <span data-i18n="dark">Dark</span></button>
+      <button type="button" data-theme-choice="light">☀ <span data-i18n="light">Light</span></button>
+    </div>
+    <div class="settings-label" data-i18n="language">LANGUAGE</div>
+    <div class="lang-list">
+      <button class="lang-item" type="button" data-lang="en"><span>🇬🇧</span>English<small>EN</small></button>
+      <button class="lang-item" type="button" data-lang="cs"><span>🇨🇿</span>Čeština<small>CS</small></button>
+      <button class="lang-item" type="button" data-lang="de"><span>🇩🇪</span>Deutsch<small>DE</small></button>
+      <button class="lang-item" type="button" data-lang="es"><span>🇪🇸</span>Español<small>ES</small></button>
+      <button class="lang-item" type="button" data-lang="fr"><span>🇫🇷</span>Français<small>FR</small></button>
+    </div>
+    <a class="report-link" href="https://github.com/CaseyCZ/iOS-IPA-Builder/issues/new" target="_blank" rel="noopener" data-i18n="report">Report issue</a>
   </div>
+
+  <main class="wrap">
+    <section class="hero">
+      <div class="eyebrow" data-i18n="eyebrow">GitHub Actions · macOS · Xcode</div>
+      <h1 data-i18n="heroTitle">Build an iOS IPA without a local Mac.</h1>
+      <p data-i18n="heroText">Create clean unsigned IPA packages or App Store/TestFlight-ready signed IPA files directly with GitHub Actions.</p>
+      <div class="hero-actions">
+        <a class="btn primary" href="https://github.com/CaseyCZ/iOS-IPA-Builder/actions/workflows/build-ios.yml" target="_blank" rel="noopener" data-i18n="runBuilder">Run iOS IPA Builder</a>
+        <a class="btn secondary" href="https://github.com/CaseyCZ/iOS-IPA-Builder#readme" target="_blank" rel="noopener" data-i18n="setup">View setup</a>
+      </div>
+
+      <div class="builder-preview">
+        <div class="builder-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="builder-title" data-i18n="previewTitle">Workflow preview</span></div>
+        <div class="form-grid">
+          <div class="field"><small data-i18n="sourceRepo">Source repository</small><strong>owner/my-ios-app</strong></div>
+          <div class="field"><small data-i18n="projectType">Project type</small><strong data-i18n="autoDetect">Auto detect</strong></div>
+          <div class="field"><small data-i18n="buildMode">Build mode</small><strong data-i18n="unsigned">Unsigned IPA</strong></div>
+          <div class="field"><small data-i18n="output">Output</small><strong data-i18n="publicPrivate">Public or Private Release</strong></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="modes" class="section">
+      <div class="section-head">
+        <h2 data-i18n="modesTitle">Two build modes</h2>
+        <p data-i18n="modesText">Use the same workflow for sideloading builds or a normal Apple distribution build.</p>
+      </div>
+      <div class="grid">
+        <article class="card">
+          <div class="card-icon">01</div>
+          <h3 data-i18n="unsigned">Unsigned IPA</h3>
+          <p data-i18n="unsignedText">Creates a clean Release build with code signing disabled, then packages the app as a standard IPA for signing elsewhere.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon">02</div>
+          <h3 data-i18n="appStore">App Store / TestFlight</h3>
+          <p data-i18n="appStoreText">Uses your own Apple Distribution certificate and provisioning profile to create a signed IPA. Upload to Apple stays manual.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="how" class="section">
+      <div class="section-head">
+        <h2 data-i18n="howTitle">How it works</h2>
+        <p data-i18n="howText">The builder is a GitHub workflow, not a desktop app. GitHub starts a macOS runner and performs the build remotely.</p>
+      </div>
+      <div class="flow">
+        <div class="step"><span class="step-num">STEP 1</span><strong data-i18n="step1Title">Select source</strong><span data-i18n="step1Text">Choose repository, branch or tag.</span></div>
+        <div class="step"><span class="step-num">STEP 2</span><strong data-i18n="step2Title">Detect project</strong><span data-i18n="step2Text">Xcode, Capacitor, Flutter or React Native.</span></div>
+        <div class="step"><span class="step-num">STEP 3</span><strong data-i18n="step3Title">Build on macOS</strong><span data-i18n="step3Text">Xcode creates the unsigned or signed IPA.</span></div>
+        <div class="step"><span class="step-num">STEP 4</span><strong data-i18n="step4Title">Deliver release</strong><span data-i18n="step4Text">Save the IPA to a public or private GitHub Release.</span></div>
+      </div>
+    </section>
+
+    <section id="support" class="section">
+      <div class="section-head">
+        <h2 data-i18n="supportedTitle">Supported projects</h2>
+        <p data-i18n="supportedText">Auto detection is the default, with manual override available when needed.</p>
+      </div>
+      <div class="chips">
+        <span class="chip">Native Xcode</span><span class="chip">Capacitor</span><span class="chip">Flutter</span><span class="chip">React Native</span>
+      </div>
+      <div class="notice"><strong data-i18n="freeTitle">Simple by design.</strong> <span data-i18n="freeText">Standard GitHub-hosted runners only, no Actions artifact storage, and no automatic App Store Connect upload.</span></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap"><span data-i18n="footer">iOS IPA Builder · Open-source GitHub Actions build tool</span></div>
+  </footer>
+
+  <script>
+    const COPY={
+      en:{brandSub:'GitHub Actions build tool',navModes:'Build modes',navHow:'How it works',navSupport:'Supported',run:'Run Builder',settings:'Settings',appearance:'APPEARANCE',dark:'Dark',light:'Light',language:'LANGUAGE',report:'Report issue',eyebrow:'GitHub Actions · macOS · Xcode',heroTitle:'Build an iOS IPA without a local Mac.',heroText:'Create clean unsigned IPA packages or App Store/TestFlight-ready signed IPA files directly with GitHub Actions.',runBuilder:'Run iOS IPA Builder',setup:'View setup',previewTitle:'Workflow preview',sourceRepo:'Source repository',projectType:'Project type',autoDetect:'Auto detect',buildMode:'Build mode',unsigned:'Unsigned IPA',output:'Output',publicPrivate:'Public or Private Release',modesTitle:'Two build modes',modesText:'Use the same workflow for sideloading builds or a normal Apple distribution build.',unsignedText:'Creates a clean Release build with code signing disabled, then packages the app as a standard IPA for signing elsewhere.',appStore:'App Store / TestFlight',appStoreText:'Uses your own Apple Distribution certificate and provisioning profile to create a signed IPA. Upload to Apple stays manual.',howTitle:'How it works',howText:'The builder is a GitHub workflow, not a desktop app. GitHub starts a macOS runner and performs the build remotely.',step1Title:'Select source',step1Text:'Choose repository, branch or tag.',step2Title:'Detect project',step2Text:'Xcode, Capacitor, Flutter or React Native.',step3Title:'Build on macOS',step3Text:'Xcode creates the unsigned or signed IPA.',step4Title:'Deliver release',step4Text:'Save the IPA to a public or private GitHub Release.',supportedTitle:'Supported projects',supportedText:'Auto detection is the default, with manual override available when needed.',freeTitle:'Simple by design.',freeText:'Standard GitHub-hosted runners only, no Actions artifact storage, and no automatic App Store Connect upload.',footer:'iOS IPA Builder · Open-source GitHub Actions build tool'},
+      cs:{brandSub:'Nástroj pro build přes GitHub Actions',navModes:'Režimy buildu',navHow:'Jak to funguje',navSupport:'Podpora',run:'Spustit builder',settings:'Nastavení',appearance:'VZHLED',dark:'Tmavý',light:'Světlý',language:'JAZYK',report:'Nahlásit problém',eyebrow:'GitHub Actions · macOS · Xcode',heroTitle:'Vytvoř iOS IPA bez vlastního Macu.',heroText:'Vytvoř čisté unsigned IPA nebo podepsané IPA připravené pro App Store/TestFlight přímo přes GitHub Actions.',runBuilder:'Spustit iOS IPA Builder',setup:'Zobrazit nastavení',previewTitle:'Náhled workflow',sourceRepo:'Zdrojový repozitář',projectType:'Typ projektu',autoDetect:'Automatická detekce',buildMode:'Režim buildu',unsigned:'Unsigned IPA',output:'Výstup',publicPrivate:'Veřejný nebo soukromý Release',modesTitle:'Dva režimy buildu',modesText:'Stejný workflow pro sideloading i běžný Apple distribuční build.',unsignedText:'Vytvoří čistý Release build bez podepisování a zabalí aplikaci jako standardní IPA pro pozdější podpis.',appStore:'App Store / TestFlight',appStoreText:'Použije vlastní Apple Distribution certifikát a provisioning profil a vytvoří podepsanou IPA. Odeslání do Apple zůstává ruční.',howTitle:'Jak to funguje',howText:'Builder je GitHub workflow, ne desktopová aplikace. GitHub spustí macOS runner a build provede vzdáleně.',step1Title:'Vyber zdroj',step1Text:'Zvol repozitář, větev nebo tag.',step2Title:'Detekce projektu',step2Text:'Xcode, Capacitor, Flutter nebo React Native.',step3Title:'Build na macOS',step3Text:'Xcode vytvoří unsigned nebo podepsanou IPA.',step4Title:'Uložení výstupu',step4Text:'IPA se uloží do veřejného nebo soukromého GitHub Release.',supportedTitle:'Podporované projekty',supportedText:'Výchozí je automatická detekce, v případě potřeby lze typ zvolit ručně.',freeTitle:'Jednoduché záměrně.',freeText:'Pouze standardní GitHub-hosted runnery, bez Actions artifact storage a bez automatického uploadu do App Store Connect.',footer:'iOS IPA Builder · Open-source build nástroj pro GitHub Actions'},
+      de:{brandSub:'GitHub Actions Build-Tool',navModes:'Build-Modi',navHow:'So funktioniert es',navSupport:'Unterstützt',run:'Builder starten',settings:'Einstellungen',appearance:'DARSTELLUNG',dark:'Dunkel',light:'Hell',language:'SPRACHE',report:'Problem melden',eyebrow:'GitHub Actions · macOS · Xcode',heroTitle:'Erstelle eine iOS-IPA ohne eigenen Mac.',heroText:'Erstelle saubere unsignierte IPA-Dateien oder signierte App Store/TestFlight-IPAs direkt mit GitHub Actions.',runBuilder:'iOS IPA Builder starten',setup:'Einrichtung ansehen',previewTitle:'Workflow-Vorschau',sourceRepo:'Quell-Repository',projectType:'Projekttyp',autoDetect:'Automatisch erkennen',buildMode:'Build-Modus',unsigned:'Unsigned IPA',output:'Ausgabe',publicPrivate:'Öffentliches oder privates Release',modesTitle:'Zwei Build-Modi',modesText:'Ein Workflow für Sideloading oder einen normalen Apple-Distributions-Build.',unsignedText:'Erstellt einen sauberen Release-Build ohne Code-Signierung und verpackt die App als Standard-IPA.',appStore:'App Store / TestFlight',appStoreText:'Verwendet dein Apple Distribution-Zertifikat und Provisioning Profile für eine signierte IPA. Der Apple-Upload bleibt manuell.',howTitle:'So funktioniert es',howText:'Der Builder ist ein GitHub-Workflow, keine Desktop-App. GitHub startet einen macOS-Runner und baut die App remote.',step1Title:'Quelle auswählen',step1Text:'Repository, Branch oder Tag auswählen.',step2Title:'Projekt erkennen',step2Text:'Xcode, Capacitor, Flutter oder React Native.',step3Title:'Auf macOS bauen',step3Text:'Xcode erstellt die unsignierte oder signierte IPA.',step4Title:'Release speichern',step4Text:'IPA in einem öffentlichen oder privaten GitHub Release speichern.',supportedTitle:'Unterstützte Projekte',supportedText:'Automatische Erkennung ist Standard, manuelle Auswahl ist bei Bedarf möglich.',freeTitle:'Bewusst einfach.',freeText:'Nur standardmäßige GitHub-hosted Runner, kein Actions-Artifact-Speicher und kein automatischer App Store Connect Upload.',footer:'iOS IPA Builder · Open-Source GitHub Actions Build-Tool'},
+      es:{brandSub:'Herramienta de compilación con GitHub Actions',navModes:'Modos de compilación',navHow:'Cómo funciona',navSupport:'Compatible',run:'Ejecutar Builder',settings:'Ajustes',appearance:'APARIENCIA',dark:'Oscuro',light:'Claro',language:'IDIOMA',report:'Reportar un problema',eyebrow:'GitHub Actions · macOS · Xcode',heroTitle:'Crea una IPA de iOS sin un Mac local.',heroText:'Crea IPA limpias sin firmar o IPA firmadas para App Store/TestFlight directamente con GitHub Actions.',runBuilder:'Ejecutar iOS IPA Builder',setup:'Ver configuración',previewTitle:'Vista previa del workflow',sourceRepo:'Repositorio de origen',projectType:'Tipo de proyecto',autoDetect:'Detección automática',buildMode:'Modo de compilación',unsigned:'IPA sin firmar',output:'Salida',publicPrivate:'Release público o privado',modesTitle:'Dos modos de compilación',modesText:'El mismo workflow para sideloading o una compilación normal de distribución de Apple.',unsignedText:'Crea una compilación Release limpia sin firma y empaqueta la app como una IPA estándar.',appStore:'App Store / TestFlight',appStoreText:'Usa tu certificado Apple Distribution y perfil de aprovisionamiento para crear una IPA firmada. La subida a Apple sigue siendo manual.',howTitle:'Cómo funciona',howText:'El builder es un workflow de GitHub, no una app de escritorio. GitHub inicia un runner macOS y compila remotamente.',step1Title:'Seleccionar origen',step1Text:'Elige repositorio, rama o etiqueta.',step2Title:'Detectar proyecto',step2Text:'Xcode, Capacitor, Flutter o React Native.',step3Title:'Compilar en macOS',step3Text:'Xcode crea la IPA sin firmar o firmada.',step4Title:'Guardar release',step4Text:'Guarda la IPA en un GitHub Release público o privado.',supportedTitle:'Proyectos compatibles',supportedText:'La detección automática es la opción predeterminada, con selección manual cuando sea necesario.',freeTitle:'Simple a propósito.',freeText:'Solo runners estándar de GitHub, sin almacenamiento de artefactos de Actions y sin subida automática a App Store Connect.',footer:'iOS IPA Builder · Herramienta open-source para GitHub Actions'},
+      fr:{brandSub:'Outil de build GitHub Actions',navModes:'Modes de build',navHow:'Fonctionnement',navSupport:'Pris en charge',run:'Lancer le builder',settings:'Réglages',appearance:'APPARENCE',dark:'Sombre',light:'Clair',language:'LANGUE',report:'Signaler un problème',eyebrow:'GitHub Actions · macOS · Xcode',heroTitle:'Créez une IPA iOS sans Mac local.',heroText:'Créez des IPA non signées propres ou des IPA signées prêtes pour App Store/TestFlight directement avec GitHub Actions.',runBuilder:'Lancer iOS IPA Builder',setup:'Voir la configuration',previewTitle:'Aperçu du workflow',sourceRepo:'Dépôt source',projectType:'Type de projet',autoDetect:'Détection automatique',buildMode:'Mode de build',unsigned:'IPA non signée',output:'Sortie',publicPrivate:'Release publique ou privée',modesTitle:'Deux modes de build',modesText:'Le même workflow pour le sideloading ou un build de distribution Apple classique.',unsignedText:'Crée un build Release propre sans signature puis empaquette l’app en IPA standard.',appStore:'App Store / TestFlight',appStoreText:'Utilise votre certificat Apple Distribution et votre profil de provisioning pour créer une IPA signée. L’envoi vers Apple reste manuel.',howTitle:'Fonctionnement',howText:'Le builder est un workflow GitHub, pas une application de bureau. GitHub démarre un runner macOS et effectue le build à distance.',step1Title:'Choisir la source',step1Text:'Choisissez le dépôt, la branche ou le tag.',step2Title:'Détecter le projet',step2Text:'Xcode, Capacitor, Flutter ou React Native.',step3Title:'Builder sur macOS',step3Text:'Xcode crée l’IPA non signée ou signée.',step4Title:'Livrer la release',step4Text:'Enregistrez l’IPA dans une GitHub Release publique ou privée.',supportedTitle:'Projets pris en charge',supportedText:'La détection automatique est utilisée par défaut, avec sélection manuelle si nécessaire.',freeTitle:'Simple par conception.',freeText:'Uniquement des runners GitHub standard, sans stockage Actions Artifact et sans envoi automatique vers App Store Connect.',footer:'iOS IPA Builder · Outil open-source basé sur GitHub Actions'}
+    };
+
+    const root=document.documentElement;
+    const settingsButton=document.getElementById('settingsButton');
+    const settingsPanel=document.getElementById('settingsPanel');
+    const themeButtons=[...document.querySelectorAll('[data-theme-choice]')];
+    const langButtons=[...document.querySelectorAll('[data-lang]')];
+
+    function applyTheme(theme){
+      const value=theme==='light'?'light':'dark';
+      root.dataset.theme=value;
+      localStorage.setItem('ipa-builder-theme',value);
+      themeButtons.forEach(b=>b.classList.toggle('active',b.dataset.themeChoice===value));
+    }
+
+    function applyLanguage(lang){
+      const value=COPY[lang]?lang:'en';
+      document.documentElement.lang=value;
+      localStorage.setItem('ipa-builder-language',value);
+      document.querySelectorAll('[data-i18n]').forEach(el=>{
+        const key=el.dataset.i18n;
+        if(COPY[value][key]!=null) el.textContent=COPY[value][key];
+      });
+      langButtons.forEach(b=>b.classList.toggle('active',b.dataset.lang===value));
+      settingsButton.setAttribute('aria-label',COPY[value].settings);
+      settingsButton.title=COPY[value].settings;
+    }
+
+    function positionSettings(){
+      if(!settingsPanel.classList.contains('open')) return;
+      const r=settingsButton.getBoundingClientRect();
+      const edge=10,gap=8,width=Math.min(310,innerWidth-edge*2);
+      settingsPanel.style.width=width+'px';
+      settingsPanel.style.left=Math.max(edge,Math.min(r.right-width,innerWidth-width-edge))+'px';
+      settingsPanel.style.top=Math.min(r.bottom+gap,innerHeight-120)+'px';
+    }
+
+    function closeSettings(){
+      settingsPanel.classList.remove('open');
+      settingsPanel.setAttribute('aria-hidden','true');
+      settingsButton.setAttribute('aria-expanded','false');
+    }
+
+    settingsButton.addEventListener('click',e=>{
+      e.stopPropagation();
+      const open=settingsPanel.classList.toggle('open');
+      settingsPanel.setAttribute('aria-hidden',String(!open));
+      settingsButton.setAttribute('aria-expanded',String(open));
+      if(open) positionSettings();
+    });
+    settingsPanel.addEventListener('click',e=>e.stopPropagation());
+    document.addEventListener('click',closeSettings);
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSettings()});
+    window.addEventListener('resize',positionSettings,{passive:true});
+
+    themeButtons.forEach(b=>b.addEventListener('click',()=>applyTheme(b.dataset.themeChoice)));
+    langButtons.forEach(b=>b.addEventListener('click',()=>applyLanguage(b.dataset.lang)));
+
+    applyTheme(localStorage.getItem('ipa-builder-theme')||'dark');
+    applyLanguage(localStorage.getItem('ipa-builder-language')||'en');
+  </script>
 </body>
 </html>
