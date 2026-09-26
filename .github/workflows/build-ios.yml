@@ -44,7 +44,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-ipa-builder-${{ github.actor }}-${{ inputs.source_repo }}-${{ inputs.source_ref }}
+  group: ios-ipa-builder
   cancel-in-progress: false
 
 jobs:
