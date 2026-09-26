@@ -12,10 +12,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ios-ipa-builder-checks-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   shell-checks:
     name: Validate builder scripts
