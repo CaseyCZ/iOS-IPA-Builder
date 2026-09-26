@@ -18,14 +18,14 @@ Apple certificates, provisioning profiles and App Store Connect credentials will
 
 ## Supported project types
 
-Planned:
+Source inspection currently recognizes:
 
 - Native Xcode
 - Capacitor
 - Flutter
 - React Native
 
-The builder will also include an `Auto detect` mode where possible.
+`Auto` is the recommended default. It detects common project markers such as `capacitor.config.*`, `pubspec.yaml`, React Native dependencies and Xcode projects/workspaces. A project type can still be selected manually when needed.
 
 ## Security model
 
@@ -34,13 +34,18 @@ This repository is public and contains only build infrastructure.
 - No application source code is stored here by default.
 - No Apple credentials are bundled with the project.
 - No developer secrets are committed to the repository.
-- Private applications will require the owner to provide their own read-only source access token.
+- Public source repositories can be inspected without a source token.
+- Private applications require the owner to provide their own fine-grained read-only source token as the `SOURCE_TOKEN` repository secret.
+- The source token is used only while fetching the selected source and is not persisted in its Git configuration.
 - Public users should fork this repository and configure their own secrets in their fork.
+- Source inspection does not execute code from the selected application.
 - Build outputs will not be published automatically from this repository.
 
 ## Current stage
 
-The workflow UI is being built first. Build execution, project detection, signing and private output handling will be added in separate steps.
+The workflow UI, safe source fetch and project auto-detection are available.
+
+Compilation, IPA packaging, signing and private output handling are intentionally being added in separate steps.
 
 ## License
 
