@@ -12,6 +12,7 @@ if [[ ! -d "$SOURCE_DIR" ]]; then
   exit 50
 fi
 
+SOURCE_DIR="$(cd "$SOURCE_DIR" && pwd)"
 ROOT="$SOURCE_DIR"
 if [[ "$PROJECT_ROOT" != "." && -n "$PROJECT_ROOT" ]]; then
   ROOT="$SOURCE_DIR/$PROJECT_ROOT"
@@ -32,32 +33,36 @@ esac
 
 install_js_dependencies() {
   local dir="$1"
-  cd "$dir"
+  (
+    cd "$dir"
 
-  if [[ -f pnpm-lock.yaml ]]; then
-    corepack enable
-    pnpm install --frozen-lockfile
-  elif [[ -f yarn.lock ]]; then
-    corepack enable
-    yarn install --immutable 2>/dev/null || yarn install --frozen-lockfile
-  elif [[ -f package-lock.json || -f npm-shrinkwrap.json ]]; then
-    npm ci --no-audit --no-fund
-  elif [[ -f package.json ]]; then
-    npm install --no-audit --no-fund
-  else
-    echo "::error::JavaScript project has no package.json."
-    exit 53
-  fi
+    if [[ -f pnpm-lock.yaml ]]; then
+      corepack enable
+      pnpm install --frozen-lockfile
+    elif [[ -f yarn.lock ]]; then
+      corepack enable
+      yarn install --immutable 2>/dev/null || yarn install --frozen-lockfile
+    elif [[ -f package-lock.json || -f npm-shrinkwrap.json ]]; then
+      npm ci --no-audit --no-fund
+    elif [[ -f package.json ]]; then
+      npm install --no-audit --no-fund
+    else
+      echo "::error::JavaScript project has no package.json."
+      exit 53
+    fi
+  )
 }
 
 run_web_build_if_present() {
   local dir="$1"
-  cd "$dir"
-  if node -e "const p=require('./package.json');process.exit(p.scripts&&p.scripts.build?0:1)"; then
-    npm run build
-  else
-    echo "No package.json build script; continuing without a web build."
-  fi
+  (
+    cd "$dir"
+    if node -e "const p=require('./package.json');process.exit(p.scripts&&p.scripts.build?0:1)"; then
+      npm run build
+    else
+      echo "No package.json build script; continuing without a web build."
+    fi
+  )
 }
 
 prepare_capacitor() {
@@ -100,20 +105,15 @@ NODE
 install_pods_if_needed() {
   local ios_dir="$1"
   local project_root="${2:-$1}"
+
+  [[ -d "$ios_dir" ]] || return 0
+  ios_dir="$(cd "$ios_dir" && pwd)"
+  project_root="$(cd "$project_root" && pwd)"
+
   if [[ -f "$ios_dir/Podfile" ]]; then
     echo "Podfile detected; installing CocoaPods dependencies."
-    if [[ -f "$project_root/Gemfile" ]] && command -v bundle >/dev/null 2>&1; then
-      (
-        cd "$project_root"
-        if bundle check >/dev/null 2>&1; then
-          cd "$ios_dir"
-          bundle exec pod install
-        else
-          echo "Bundler dependencies are not installed; using system CocoaPods."
-          cd "$ios_dir"
-          pod install
-        fi
-      )
+    if [[ -f "$project_root/Gemfile" ]] && command -v bundle >/dev/null 2>&1 && (cd "$project_root" && bundle check >/dev/null 2>&1); then
+      (cd "$ios_dir" && bundle exec pod install)
     else
       (cd "$ios_dir" && pod install)
     fi
