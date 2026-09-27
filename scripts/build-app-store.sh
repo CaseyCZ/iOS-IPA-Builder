@@ -197,6 +197,38 @@ print(schemes[0])
 PY
 }
 
+detect_apple_platform() {
+  local kind="$1"
+  local container="$2"
+  local scheme="$3"
+  local args=()
+  local settings sdkroot supported
+
+  if [[ "$kind" == "workspace" ]]; then
+    args+=( -workspace "$container" )
+  else
+    args+=( -project "$container" )
+  fi
+
+  settings="$(xcodebuild "${args[@]}" -scheme "$scheme" -configuration Release -showBuildSettings 2>/dev/null)"
+  sdkroot="$(printf '%s\n' "$settings" | awk -F' = ' '/^[[:space:]]*SDKROOT = / {print $2; exit}')"
+  supported="$(printf '%s\n' "$settings" | awk -F' = ' '/^[[:space:]]*SUPPORTED_PLATFORMS = / {print $2; exit}')"
+
+  if [[ "$sdkroot" == appletvos* ]]; then
+    echo "tvos"
+  elif [[ "$sdkroot" == iphoneos* ]]; then
+    echo "ios"
+  elif [[ "$supported" == *appletvos* && "$supported" != *iphoneos* ]]; then
+    echo "tvos"
+  elif [[ "$supported" == *iphoneos* ]]; then
+    echo "ios"
+  else
+    echo "::error::Unable to detect whether the Xcode scheme targets iOS or tvOS." >&2
+    echo "::error::SDKROOT='$sdkroot' SUPPORTED_PLATFORMS='$supported'" >&2
+    exit 125
+  fi
+}
+
 archive_app() {
   local search_root="$1"
   local archive_path="$RUNNER_TEMP/ios-ipa-builder/AppStore.xcarchive"
@@ -210,6 +242,24 @@ archive_app() {
   container="${found#*|}"
   scheme="$(detect_scheme "$kind" "$container")"
 
+  local platform sdk destination
+  platform="$(detect_apple_platform "$kind" "$container" "$scheme")"
+
+  case "$platform" in
+    tvos)
+      sdk="appletvos"
+      destination="generic/platform=tvOS"
+      ;;
+    ios)
+      sdk="iphoneos"
+      destination="generic/platform=iOS"
+      ;;
+    *)
+      echo "::error::Unsupported Apple platform: $platform"
+      exit 126
+      ;;
+  esac
+
   local args=()
   if [[ "$kind" == "workspace" ]]; then
     args+=( -workspace "$container" )
@@ -219,6 +269,7 @@ archive_app() {
 
   echo "Xcode container : $container"
   echo "Scheme          : $scheme"
+  echo "Platform        : $platform"
   echo "Configuration   : Release"
   echo "Signing         : manual App Store distribution"
 
@@ -226,8 +277,8 @@ archive_app() {
     "${args[@]}" \
     -scheme "$scheme" \
     -configuration Release \
-    -sdk iphoneos \
-    -destination 'generic/platform=iOS' \
+    -sdk "$sdk" \
+    -destination "$destination" \
     -derivedDataPath "$derived" \
     -archivePath "$archive_path" \
     DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
