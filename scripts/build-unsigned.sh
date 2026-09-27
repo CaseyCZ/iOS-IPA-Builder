@@ -205,6 +205,38 @@ print(schemes[0])
 PY
 }
 
+detect_apple_platform() {
+  local kind="$1"
+  local container="$2"
+  local scheme="$3"
+  local args=()
+  local settings sdkroot supported
+
+  if [[ "$kind" == "workspace" ]]; then
+    args+=( -workspace "$container" )
+  else
+    args+=( -project "$container" )
+  fi
+
+  settings="$(xcodebuild "${args[@]}" -scheme "$scheme" -configuration Release -showBuildSettings 2>/dev/null)"
+  sdkroot="$(printf '%s\n' "$settings" | awk -F' = ' '/^[[:space:]]*SDKROOT = / {print $2; exit}')"
+  supported="$(printf '%s\n' "$settings" | awk -F' = ' '/^[[:space:]]*SUPPORTED_PLATFORMS = / {print $2; exit}')"
+
+  if [[ "$sdkroot" == appletvos* ]]; then
+    echo "tvos"
+  elif [[ "$sdkroot" == iphoneos* ]]; then
+    echo "ios"
+  elif [[ "$supported" == *appletvos* && "$supported" != *iphoneos* ]]; then
+    echo "tvos"
+  elif [[ "$supported" == *iphoneos* ]]; then
+    echo "ios"
+  else
+    echo "::error::Unable to detect whether the Xcode scheme targets iOS or tvOS." >&2
+    echo "::error::SDKROOT='$sdkroot' SUPPORTED_PLATFORMS='$supported'" >&2
+    exit 63
+  fi
+}
+
 BUILT_APP_PATH=""
 
 build_xcode_app() {
@@ -218,8 +250,29 @@ build_xcode_app() {
   container="${found#*|}"
   scheme="$(detect_scheme "$kind" "$container")"
 
+  local platform sdk destination product_dir
+  platform="$(detect_apple_platform "$kind" "$container" "$scheme")"
+
+  case "$platform" in
+    tvos)
+      sdk="appletvos"
+      destination="generic/platform=tvOS"
+      product_dir="appletvos"
+      ;;
+    ios)
+      sdk="iphoneos"
+      destination="generic/platform=iOS"
+      product_dir="iphoneos"
+      ;;
+    *)
+      echo "::error::Unsupported Apple platform: $platform"
+      exit 64
+      ;;
+  esac
+
   echo "Xcode container : $container"
   echo "Scheme          : $scheme"
+  echo "Platform        : $platform"
   echo "Configuration   : Release"
   echo "Signing         : disabled"
 
@@ -234,8 +287,8 @@ build_xcode_app() {
     "${args[@]}" \
     -scheme "$scheme" \
     -configuration Release \
-    -sdk iphoneos \
-    -destination 'generic/platform=iOS' \
+    -sdk "$sdk" \
+    -destination "$destination" \
     -derivedDataPath "$derived" \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGNING_REQUIRED=NO \
@@ -244,7 +297,7 @@ build_xcode_app() {
 
   local app_path
   app_path="$(find "$derived/Build/Products" -maxdepth 3 -type d -name '*.app' \
-    -path '*Release-iphoneos*' -print | sort | head -n 1 || true)"
+    -path "*Release-$product_dir*" -print | sort | head -n 1 || true)"
 
   if [[ -z "$app_path" ]]; then
     echo "::error::Xcode build completed but no Release iphoneos .app was found."
