@@ -52,6 +52,17 @@ jobs:
           grep -q '^          - macos-latest$' .github/workflows/build-ios.yml
           grep -q '^          - xcode-27$' .github/workflows/build-ios.yml
 
+      - name: Confirm iOS and tvOS Xcode support
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'sdk="appletvos"' scripts/build-unsigned.sh
+          grep -q 'destination="generic/platform=tvOS"' scripts/build-unsigned.sh
+          grep -q 'sdk="iphoneos"' scripts/build-unsigned.sh
+          grep -q 'destination="generic/platform=iOS"' scripts/build-unsigned.sh
+          grep -q 'sdk="appletvos"' scripts/build-app-store.sh
+          grep -q 'destination="generic/platform=tvOS"' scripts/build-app-store.sh
+
       - name: Confirm no Actions artifact or cache storage
         shell: bash
         run: |
