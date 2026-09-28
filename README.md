@@ -10,7 +10,6 @@ Expected project URL after enabling Pages from `Master /docs`:
 
 `https://caseycz.github.io/iOS-IPA-Builder/`
 
-> Status: early development. Clean unsigned IPA builds are enabled for native Xcode, Capacitor, Flutter and React Native projects.
 
 ## Build modes
 
@@ -109,6 +108,3 @@ Available now:
 
 App Store Connect/TestFlight upload is intentionally manual. The builder stops after producing and delivering the signed IPA.
 
-## License
-
-License will be added before the first public release.
