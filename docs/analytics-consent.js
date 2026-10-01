@@ -8,11 +8,11 @@
   let settingsButton = null;
 
   const COPY = {
-    en: { title:'Analytics cookies', text:'This site uses Google Analytics only if you choose Accept. Rejecting keeps analytics disabled.', accept:'Accept analytics', reject:'Reject', settings:'Cookies' },
-    cs: { title:'Analytické cookies', text:'Tento web používá Google Analytics pouze pokud zvolíte Přijmout. Odmítnutím zůstane analytika vypnutá.', accept:'Přijmout analytiku', reject:'Odmítnout', settings:'Cookies' },
-    de: { title:'Analyse-Cookies', text:'Diese Website verwendet Google Analytics nur mit Ihrer Zustimmung. Bei Ablehnung bleibt die Analyse deaktiviert.', accept:'Analyse akzeptieren', reject:'Ablehnen', settings:'Cookies' },
-    es: { title:'Cookies de análisis', text:'Este sitio usa Google Analytics solo si eliges Aceptar. Si rechazas, el análisis permanece desactivado.', accept:'Aceptar análisis', reject:'Rechazar', settings:'Cookies' },
-    fr: { title:'Cookies de mesure', text:'Ce site utilise Google Analytics uniquement si vous l’acceptez. En cas de refus, la mesure reste désactivée.', accept:'Accepter la mesure', reject:'Refuser', settings:'Cookies' }
+    en: { title:'Analytics cookies', text:'This site uses Google Analytics only if you choose Accept. Rejecting keeps analytics disabled.', accept:'Accept analytics', reject:'Reject', settings:'Cookie settings' },
+    cs: { title:'Analytické cookies', text:'Tento web používá Google Analytics pouze pokud zvolíte Přijmout. Odmítnutím zůstane analytika vypnutá.', accept:'Přijmout analytiku', reject:'Odmítnout', settings:'Nastavení cookies' },
+    de: { title:'Analyse-Cookies', text:'Diese Website verwendet Google Analytics nur mit Ihrer Zustimmung. Bei Ablehnung bleibt die Analyse deaktiviert.', accept:'Analyse akzeptieren', reject:'Ablehnen', settings:'Cookie-Einstellungen' },
+    es: { title:'Cookies de análisis', text:'Este sitio usa Google Analytics solo si eliges Aceptar. Si rechazas, el análisis permanece desactivado.', accept:'Aceptar análisis', reject:'Rechazar', settings:'Configuración de cookies' },
+    fr: { title:'Cookies de mesure', text:'Ce site utilise Google Analytics uniquement si vous l’acceptez. En cas de refus, la mesure reste désactivée.', accept:'Accepter la mesure', reject:'Refuser', settings:'Paramètres des cookies' }
   };
 
   function lang() {
@@ -81,7 +81,10 @@
       .caseycz-consent-copy{flex:1;min-width:0}.caseycz-consent-copy strong{display:block;margin-bottom:3px}.caseycz-consent-copy span{opacity:.8}
       .caseycz-consent-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.caseycz-consent button,.caseycz-cookie-settings{font:inherit;font-weight:700;cursor:pointer;border-radius:10px;border:1px solid rgba(127,127,127,.4);min-height:38px;padding:0 12px}
       .caseycz-consent [data-accept]{background:#0a84ff;border-color:#0a84ff;color:#fff}.caseycz-consent [data-reject]{background:transparent;color:#fff}
-      .caseycz-cookie-settings{position:fixed;z-index:2147483645;left:max(10px,env(safe-area-inset-left));bottom:max(10px,env(safe-area-inset-bottom));min-height:32px;padding:0 10px;background:rgba(20,22,28,.86);color:#fff;font-size:12px;backdrop-filter:blur(8px)}
+      .caseycz-cookie-settings-wrap{display:flex;justify-content:center;align-items:center;margin-top:10px}
+      .caseycz-cookie-settings{min-height:32px;padding:0;border:0;background:transparent;color:inherit;font-size:12px;text-decoration:underline;text-underline-offset:3px;opacity:.75}
+      .caseycz-cookie-settings:hover{opacity:1}
+      .caseycz-privacy-footer{padding:14px 16px;text-align:center;color:#94a3b8;font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
       @media(max-width:600px){.caseycz-consent{align-items:stretch;flex-direction:column}.caseycz-consent-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.caseycz-consent button{width:100%}}
     `;
     document.head.appendChild(style);
@@ -94,13 +97,22 @@
   function showSettingsButton() {
     if (settingsButton || !document.body) return;
     ensureStyle();
+    let footer = document.querySelector('footer');
+    if (!footer) {
+      footer = document.createElement('footer');
+      footer.className = 'caseycz-privacy-footer';
+      document.body.appendChild(footer);
+    }
+    const wrap = document.createElement('div');
+    wrap.className = 'caseycz-cookie-settings-wrap';
     settingsButton = document.createElement('button');
     settingsButton.type = 'button';
     settingsButton.className = 'caseycz-cookie-settings';
     settingsButton.textContent = copy().settings;
     settingsButton.setAttribute('aria-label', copy().title);
     settingsButton.addEventListener('click', () => showBanner(true));
-    document.body.appendChild(settingsButton);
+    wrap.appendChild(settingsButton);
+    footer.appendChild(wrap);
   }
   function setConsent(value) {
     writeConsent(value);
