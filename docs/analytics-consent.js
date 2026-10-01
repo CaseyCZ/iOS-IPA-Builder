@@ -1,6 +1,6 @@
 (() => {
   const MEASUREMENT_ID = 'G-SZTERTRTCE';
-  const CONSENT_KEY = 'caseycz-analytics-consent-v1';
+  const CONSENT_KEY = 'ios-ipa-builder-analytics-consent-v1';
   const PAGE_TITLE = String(document.querySelector('meta[name="analytics-page-title"]')?.content || document.title || location.hostname).trim() || location.hostname;
   const PAGE_LOCATION = `${location.origin}${location.pathname}${location.search}`;
   let loaded = false;
