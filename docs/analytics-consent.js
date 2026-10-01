@@ -95,21 +95,41 @@
     banner = null;
   }
   function showSettingsButton() {
-    if (settingsButton || !document.body) return;
+    if (!document.body) return;
     ensureStyle();
-    let footer = document.querySelector('footer');
+
+    const existing = document.querySelector('[data-cookie-settings]');
+    if (existing) {
+      settingsButton = existing;
+      settingsButton.textContent = copy().settings;
+      settingsButton.setAttribute('aria-label', copy().title);
+      if (settingsButton.dataset.cookieSettingsBound !== 'true') {
+        settingsButton.dataset.cookieSettingsBound = 'true';
+        settingsButton.addEventListener('click', event => {
+          event.preventDefault();
+          showBanner(true);
+        });
+      }
+      return;
+    }
+
+    if (settingsButton) return;
+    let footer = document.querySelector('[data-cookie-settings-host], footer, .foot, .footer, .site-footer');
     if (!footer) {
       footer = document.createElement('footer');
       footer.className = 'caseycz-privacy-footer';
       document.body.appendChild(footer);
     }
+
     const wrap = document.createElement('div');
     wrap.className = 'caseycz-cookie-settings-wrap';
     settingsButton = document.createElement('button');
     settingsButton.type = 'button';
     settingsButton.className = 'caseycz-cookie-settings';
+    settingsButton.dataset.cookieSettings = '';
     settingsButton.textContent = copy().settings;
     settingsButton.setAttribute('aria-label', copy().title);
+    settingsButton.dataset.cookieSettingsBound = 'true';
     settingsButton.addEventListener('click', () => showBanner(true));
     wrap.appendChild(settingsButton);
     footer.appendChild(wrap);
@@ -140,7 +160,7 @@
     if (consent === 'granted') loadAnalytics();
     else if (consent === 'denied') disableAnalytics();
     else showBanner();
-    if (consent) showSettingsButton();
+    showSettingsButton();
   }
   window.CaseyCZAnalytics = Object.freeze({
     consent: readConsent,
