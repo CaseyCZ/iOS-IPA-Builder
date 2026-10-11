@@ -1,0 +1,90 @@
+name: Builder Checks
+
+on:
+  push:
+    branches:
+      - Master
+  pull_request:
+    branches:
+      - Master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shell-checks:
+    name: Validate builder scripts
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Check shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in scripts/*.sh; do
+            echo "Checking $script"
+            bash -n "$script"
+          done
+
+      - name: Enforce standard runner policy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          INVALID="$(grep -REn '^[ ]{4}runs-on:' .github/workflows \
+            | grep -v 'runs-on: ubuntu-24.04' \
+            | grep -v 'runs-on: macos-latest' \
+            | grep -Fv 'runs-on: ${{ inputs.xcode_runner }}' \
+            || true)"
+
+          if [[ -n "$INVALID" ]]; then
+            echo "$INVALID"
+            echo "::error::Only approved GitHub-hosted runner selections are allowed."
+            exit 1
+          fi
+
+          grep -q '^      xcode_runner:' .github/workflows/build-ios.yml
+          grep -q '^          - macos-latest$' .github/workflows/build-ios.yml
+          grep -q '^          - xcode-27$' .github/workflows/build-ios.yml
+
+      - name: Confirm iOS and tvOS Xcode support
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'sdk="appletvos"' scripts/build-unsigned.sh
+          grep -q 'destination="generic/platform=tvOS"' scripts/build-unsigned.sh
+          grep -q 'sdk="iphoneos"' scripts/build-unsigned.sh
+          grep -q 'destination="generic/platform=iOS"' scripts/build-unsigned.sh
+          grep -q 'sdk="appletvos"' scripts/build-app-store.sh
+          grep -q 'destination="generic/platform=tvOS"' scripts/build-app-store.sh
+
+      - name: Confirm no Actions artifact or cache storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -En 'actions/(upload-artifact|cache)@' .github/workflows/build-ios.yml; then
+            echo "::error::Actions artifact/cache storage is intentionally disabled."
+            exit 1
+          fi
+
+      - name: Block automatic Apple uploads
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if grep -REniE 'iTMSTransporter|altool.*--upload-app|notarytool[[:space:]]+submit' scripts .github/workflows/build-ios.yml; then
+            echo "::error::Automatic Apple upload tooling is intentionally disabled."
+            exit 1
+          fi
+
+          if grep -REniE '"destination"[[:space:]]*:[[:space:]]*"upload"' scripts; then
+            echo "::error::ExportOptions destination must remain export, never upload."
+            exit 1
+          fi
+
+          grep -q '"destination": "export"' scripts/build-app-store.sh

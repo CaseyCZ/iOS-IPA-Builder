@@ -1,0 +1,509 @@
+name: iOS IPA Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: "Source repository (owner/repo or GitHub URL)"
+        required: true
+        type: string
+      source_ref:
+        description: "Branch, tag or commit (blank = repository default)"
+        required: false
+        type: string
+      project_path:
+        description: "Project folder inside repository (optional)"
+        required: false
+        type: string
+      project_type:
+        description: "Project type"
+        required: true
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - xcode
+          - capacitor
+          - flutter
+          - react-native
+      xcode_runner:
+        description: "Xcode runner"
+        required: true
+        default: "macos-latest"
+        type: choice
+        options:
+          - macos-latest
+          - xcode-27
+      build_mode:
+        description: "Build output"
+        required: true
+        default: "unsigned"
+        type: choice
+        options:
+          - unsigned
+          - app-store
+      scheme:
+        description: "Xcode scheme (optional; blank = auto detection)"
+        required: false
+        type: string
+      output_name:
+        description: "Output IPA name without .ipa (optional)"
+        required: false
+        type: string
+      output_repo:
+        description: "Destination repo or URL (blank = source repo)"
+        required: false
+        type: string
+      output_visibility:
+        description: "Release visibility"
+        required: true
+        default: "private"
+        type: choice
+        options:
+          - private
+          - public
+      log_mode:
+        description: "Build logs"
+        required: true
+        default: "private"
+        type: choice
+        options:
+          - private
+          - verbose
+
+permissions:
+  contents: read
+
+# Keep the builder on standard GitHub-hosted runners only.
+concurrency:
+  group: ios-ipa-builder
+  cancel-in-progress: false
+
+jobs:
+  validate-request:
+    name: Validate build request
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v5
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Validate request privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          REQUEST_FILE="$RUNNER_TEMP/request.env"
+          bash builder/scripts/request-context.sh > "$REQUEST_FILE"
+          chmod 600 "$REQUEST_FILE"
+          source "$REQUEST_FILE"
+
+          {
+            echo "## iOS IPA Builder request"
+            echo ""
+            echo "Request validated successfully."
+            echo ""
+            echo "| Setting | Value |"
+            echo "| --- | --- |"
+            printf '| Project type | `%s` |\n' "$PROJECT_TYPE"
+            printf '| Build mode | `%s` |\n' "$BUILD_MODE"
+            printf '| Xcode runner | `%s` |\n' '${{ inputs.xcode_runner }}'
+            printf '| Output visibility | `%s` |\n' "$OUTPUT_VISIBILITY"
+            printf '| Log mode | `%s` |\n' "$LOG_MODE"
+            echo ""
+            echo "> Repository names, refs and project paths are intentionally omitted from this public summary."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  inspect-source:
+    name: Inspect source
+    needs: validate-request
+    runs-on: ubuntu-24.04
+    outputs:
+      project_type: ${{ steps.detect.outputs.project_type }}
+      detected_type: ${{ steps.detect.outputs.detected_type }}
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v5
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Load private request context
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash builder/scripts/request-context.sh > "$RUNNER_TEMP/request.env"
+          chmod 600 "$RUNNER_TEMP/request.env"
+
+      - name: Fetch application source
+        shell: bash
+        env:
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/fetch-source.sh source
+
+      - name: Detect project type
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          DETECT_QUIET=1 \
+          DETECT_ENV_FILE="$RUNNER_TEMP/project.env" \
+            bash builder/scripts/detect-project.sh source "$PROJECT_TYPE" "$PROJECT_PATH"
+
+      - name: Source summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/project.env"
+          {
+            echo "## Source inspection"
+            echo ""
+            echo "| Setting | Value |"
+            echo "| --- | --- |"
+            printf '| Detected type | `%s` |\n' "$DETECTED_TYPE"
+            printf '| Build type | `%s` |\n' "$DETECTED_PROJECT_TYPE"
+            echo ""
+            echo "> Source repository, branch and project path are hidden from public logs."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build-unsigned:
+    name: Build unsigned IPA
+    needs: inspect-source
+    if: ${{ inputs.build_mode == 'unsigned' }}
+    runs-on: ${{ inputs.xcode_runner }}
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v5
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Load private request context
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash builder/scripts/request-context.sh > "$RUNNER_TEMP/request.env"
+          chmod 600 "$RUNNER_TEMP/request.env"
+
+      - name: Fetch application source
+        shell: bash
+        env:
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/fetch-source.sh source
+
+      - name: Detect project
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          DETECT_QUIET=1 \
+          DETECT_ENV_FILE="$RUNNER_TEMP/project.env" \
+            bash builder/scripts/detect-project.sh source "$PROJECT_TYPE" "$PROJECT_PATH"
+
+      - name: Setup Node.js 22 for Capacitor
+        if: ${{ steps.detect.outputs.project_type == 'capacitor' }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Setup Node.js 20 for React Native
+        if: ${{ steps.detect.outputs.project_type == 'react-native' }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+
+      - name: Install official Flutter SDK
+        if: ${{ steps.detect.outputs.project_type == 'flutter' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          FLUTTER_DIR="$RUNNER_TEMP/flutter"
+          rm -rf "$FLUTTER_DIR"
+          git clone --quiet --depth=1 --branch stable https://github.com/flutter/flutter.git "$FLUTTER_DIR"
+          echo "$FLUTTER_DIR/bin" >> "$GITHUB_PATH"
+          "$FLUTTER_DIR/bin/flutter" --version
+
+      - name: Verify standard macOS runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "macOS"
+          xcodebuild -version
+
+      - name: Build and package unsigned IPA
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          source "$RUNNER_TEMP/project.env"
+          export BUILD_ENV_FILE="$RUNNER_TEMP/build.env"
+
+          if [[ "$LOG_MODE" == "private" ]]; then
+            if ! bash builder/scripts/build-unsigned.sh \
+              source "$DETECTED_PROJECT_TYPE" "$DETECTED_PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME" \
+              > "$RUNNER_TEMP/private-build.log" 2>&1; then
+              echo "::error::Build failed. Showing compiler diagnostics only; full build output remains private."
+              echo "----- compiler diagnostics -----"
+              grep -E '(^|[[:space:]])(error:|fatal error:)|BUILD FAILED|The following build commands failed' "$RUNNER_TEMP/private-build.log" \
+                | sed -E 's#(/Users/runner/work/)[^ /]+/[^ /]+/#\1<workspace>/#g' \
+                | tail -n 80 \
+                || true
+              echo "----- end diagnostics -----"
+              exit 160
+            fi
+          else
+            bash builder/scripts/build-unsigned.sh \
+              source "$DETECTED_PROJECT_TYPE" "$DETECTED_PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME"
+          fi
+
+      - name: Deliver IPA to configured release
+        id: deliver
+        shell: bash
+        env:
+          OUTPUT_TOKEN: ${{ secrets.OUTPUT_TOKEN }}
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          source "$RUNNER_TEMP/build.env"
+          export OUTPUT_REPO
+          export OUTPUT_VISIBILITY
+          export OUTPUT_TOKEN="${OUTPUT_TOKEN:-${SOURCE_TOKEN:-}}"
+
+          if [[ "$LOG_MODE" == "private" ]]; then
+            if ! bash builder/scripts/deliver-release.sh "$IPA_PATH" > "$RUNNER_TEMP/private-delivery.log" 2>&1; then
+              echo "::error::IPA delivery failed."
+              grep -E '^::error::|^curl:' "$RUNNER_TEMP/private-delivery.log" | tail -n 12 || true
+              exit 161
+            fi
+          else
+            bash builder/scripts/deliver-release.sh "$IPA_PATH"
+          fi
+
+      - name: Build summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          source "$RUNNER_TEMP/build.env"
+
+          if [[ "$LOG_MODE" == "private" ]]; then
+            {
+              echo "## Unsigned IPA built"
+              echo ""
+              echo "Build and configured GitHub Release delivery completed successfully."
+              echo ""
+              echo "> Detailed source/build metadata is hidden because Private logs are enabled."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## Unsigned IPA built"
+              echo ""
+              echo "| Item | Value |"
+              echo "| --- | --- |"
+              printf '| File | `%s` |\n' "$IPA_NAME"
+              printf '| Size | `%s` |\n' "$IPA_SIZE"
+              printf '| SHA-256 | `%s` |\n' "$IPA_SHA256"
+              echo '| Signing | `unsigned / CODE_SIGNING_ALLOWED=NO` |'
+              printf '| Delivery | `%s GitHub Release` |\n' "$OUTPUT_VISIBILITY"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Remove private transient logs
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/private-build.log" "$RUNNER_TEMP/private-delivery.log" "$RUNNER_TEMP/request.env" "$RUNNER_TEMP/project.env" "$RUNNER_TEMP/build.env"
+
+  build-app-store:
+    name: Build App Store IPA
+    needs: inspect-source
+    if: ${{ inputs.build_mode == 'app-store' }}
+    runs-on: ${{ inputs.xcode_runner }}
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v5
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Load private request context
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash builder/scripts/request-context.sh > "$RUNNER_TEMP/request.env"
+          chmod 600 "$RUNNER_TEMP/request.env"
+
+      - name: Fetch application source
+        shell: bash
+        env:
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/fetch-source.sh source
+
+      - name: Detect project
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          DETECT_QUIET=1 \
+          DETECT_ENV_FILE="$RUNNER_TEMP/project.env" \
+            bash builder/scripts/detect-project.sh source "$PROJECT_TYPE" "$PROJECT_PATH"
+
+      - name: Setup Node.js 22 for Capacitor
+        if: ${{ steps.detect.outputs.project_type == 'capacitor' }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Setup Node.js 20 for React Native
+        if: ${{ steps.detect.outputs.project_type == 'react-native' }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+
+      - name: Install official Flutter SDK
+        if: ${{ steps.detect.outputs.project_type == 'flutter' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          FLUTTER_DIR="$RUNNER_TEMP/flutter"
+          rm -rf "$FLUTTER_DIR"
+          git clone --quiet --depth=1 --branch stable https://github.com/flutter/flutter.git "$FLUTTER_DIR"
+          echo "$FLUTTER_DIR/bin" >> "$GITHUB_PATH"
+          "$FLUTTER_DIR/bin/flutter" --version
+
+      - name: Verify standard macOS runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "macOS"
+          xcodebuild -version
+
+      - name: Validate signing secrets
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/validate-signing.sh
+
+      - name: Install temporary signing environment
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          bash builder/scripts/install-signing.sh
+
+      - name: Archive and export signed IPA
+        id: package
+        shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          source "$RUNNER_TEMP/project.env"
+          source "$RUNNER_TEMP/ios-ipa-builder-signing/signing.env"
+          export BUILD_ENV_FILE="$RUNNER_TEMP/build.env"
+
+          if [[ "$LOG_MODE" == "private" ]]; then
+            if ! bash builder/scripts/build-app-store.sh \
+              source "$DETECTED_PROJECT_TYPE" "$DETECTED_PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME" \
+              > "$RUNNER_TEMP/private-build.log" 2>&1; then
+              echo "::error::Signed build failed. Showing compiler diagnostics only; full build output remains private."
+              echo "----- compiler diagnostics -----"
+              grep -E '(^|[[:space:]])(error:|fatal error:)|BUILD FAILED|The following build commands failed' "$RUNNER_TEMP/private-build.log" \
+                | sed -E 's#(/Users/runner/work/)[^ /]+/[^ /]+/#\1<workspace>/#g' \
+                | tail -n 80 \
+                || true
+              echo "----- end diagnostics -----"
+              exit 170
+            fi
+          else
+            bash builder/scripts/build-app-store.sh \
+              source "$DETECTED_PROJECT_TYPE" "$DETECTED_PROJECT_ROOT" "$SCHEME" "$OUTPUT_NAME"
+          fi
+
+      - name: Cleanup temporary signing environment
+        if: ${{ always() }}
+        shell: bash
+        run: bash builder/scripts/cleanup-signing.sh
+
+      - name: Deliver signed IPA to configured release
+        if: ${{ success() }}
+        shell: bash
+        env:
+          OUTPUT_TOKEN: ${{ secrets.OUTPUT_TOKEN }}
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          source "$RUNNER_TEMP/build.env"
+          export OUTPUT_REPO
+          export OUTPUT_VISIBILITY
+          export OUTPUT_TOKEN="${OUTPUT_TOKEN:-${SOURCE_TOKEN:-}}"
+
+          if [[ "$LOG_MODE" == "private" ]]; then
+            if ! bash builder/scripts/deliver-release.sh "$IPA_PATH" > "$RUNNER_TEMP/private-delivery.log" 2>&1; then
+              echo "::error::IPA delivery failed."
+              grep -E '^::error::|^curl:' "$RUNNER_TEMP/private-delivery.log" | tail -n 12 || true
+              exit 171
+            fi
+          else
+            bash builder/scripts/deliver-release.sh "$IPA_PATH"
+          fi
+
+      - name: App Store build summary
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/request.env"
+          source "$RUNNER_TEMP/build.env"
+
+          if [[ "$LOG_MODE" == "private" ]]; then
+            {
+              echo "## App Store / TestFlight IPA built"
+              echo ""
+              echo "Signed build and configured GitHub Release delivery completed successfully."
+              echo ""
+              echo "> Detailed source/build metadata is hidden because Private logs are enabled."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## App Store / TestFlight IPA built"
+              echo ""
+              echo "| Item | Value |"
+              echo "| --- | --- |"
+              printf '| File | `%s` |\n' "$IPA_NAME"
+              printf '| Bundle ID | `%s` |\n' "$BUNDLE_ID"
+              printf '| Size | `%s` |\n' "$IPA_SIZE"
+              printf '| SHA-256 | `%s` |\n' "$IPA_SHA256"
+              printf '| Export method | `%s` |\n' "$EXPORT_METHOD"
+              printf '| Delivery | `%s GitHub Release` |\n' "$OUTPUT_VISIBILITY"
+              echo ""
+              echo "> The IPA was not uploaded to App Store Connect."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Remove private transient logs
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/private-build.log" "$RUNNER_TEMP/private-delivery.log" "$RUNNER_TEMP/request.env" "$RUNNER_TEMP/project.env" "$RUNNER_TEMP/build.env"
