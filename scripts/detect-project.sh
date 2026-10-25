@@ -36,6 +36,7 @@ FLUTTER_FILE="$(first_file -name 'pubspec.yaml' || true)"
 PACKAGE_FILE="$(first_file -name 'package.json' || true)"
 XCODE_WORKSPACE="$(first_dir -name '*.xcworkspace' || true)"
 XCODE_PROJECT="$(first_dir -name '*.xcodeproj' || true)"
+XCODEGEN_FILE="$(first_file -name 'project.yml' || true)"
 
 HAS_CAPACITOR=false
 HAS_FLUTTER=false
@@ -52,7 +53,7 @@ if [[ -n "$PACKAGE_FILE" ]] && grep -Eq '"react-native"[[:space:]]*:' "$PACKAGE_
   HAS_REACT_NATIVE=true
 fi
 
-if [[ -n "$XCODE_WORKSPACE" || -n "$XCODE_PROJECT" ]]; then
+if [[ -n "$XCODE_WORKSPACE" || -n "$XCODE_PROJECT" || -n "$XCODEGEN_FILE" ]]; then
   HAS_XCODE=true
 fi
 
@@ -79,7 +80,7 @@ fi
 
 if [[ "$FINAL_TYPE" == "unknown" ]]; then
   echo "::error::Unable to detect a supported iOS project type."
-  echo "Looked for Capacitor config, Flutter pubspec.yaml, React Native package.json and Xcode project/workspace."
+  echo "Looked for Capacitor config, Flutter pubspec.yaml, React Native package.json, Xcode project/workspace or XcodeGen project.yml."
   exit 21
 fi
 
@@ -88,7 +89,7 @@ marker_for_type() {
     capacitor) echo "$CAPACITOR_FILE" ;;
     flutter) echo "$FLUTTER_FILE" ;;
     react-native) echo "$PACKAGE_FILE" ;;
-    xcode) echo "${XCODE_WORKSPACE:-$XCODE_PROJECT}" ;;
+    xcode) echo "${XCODE_WORKSPACE:-${XCODE_PROJECT:-$XCODEGEN_FILE}}" ;;
   esac
 }
 
