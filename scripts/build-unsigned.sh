@@ -239,6 +239,23 @@ detect_apple_platform() {
 
 BUILT_APP_PATH=""
 
+prepare_xcodegen_if_needed() {
+  local dir="$1"
+
+  # XcodeGen-based repositories keep a project.yml instead of a committed
+  # .xcodeproj. Generate it on the macOS runner before invoking xcodebuild.
+  [[ -f "$dir/project.yml" ]] || return 0
+
+  if find "$dir" -maxdepth 1 -type d -name '*.xcodeproj' -print -quit | grep -q .; then
+    return 0
+  fi
+
+  if ! command -v xcodegen >/dev/null 2>&1; then
+    brew install xcodegen
+  fi
+  (cd "$dir" && xcodegen generate)
+}
+
 build_xcode_app() {
   local search_root="$1"
   local derived="$RUNNER_TEMP/ios-ipa-builder-derived"
@@ -379,6 +396,7 @@ case "$PROJECT_TYPE" in
     build_flutter_app "$ROOT"
     ;;
   xcode)
+    prepare_xcodegen_if_needed "$ROOT"
     install_pods_if_needed "$ROOT" "$ROOT"
     build_xcode_app "$ROOT"
     ;;
