@@ -55,4 +55,15 @@ jobs:
           /usr/bin/zip -q -r IPAControl-unsigned.ipa Payload
           /usr/bin/unzip -t IPAControl-unsigned.ipa | tail -n 1
           /usr/bin/shasum -a 256 IPAControl-unsigned.ipa
-          echo 'IPA was generated only on this temporary runner. No upload, signing, or installation.'
+          echo 'IPA validation completed. No signing or device installation has occurred.'
+
+      - name: Deliver unsigned IPA through existing release script
+        shell: bash
+        env:
+          OUTPUT_REPO: CaseyCZ/iOS-IPA-Builder
+          OUTPUT_VISIBILITY: public
+          OUTPUT_TOKEN: ${{ secrets.OUTPUT_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash scripts/deliver-release.sh \
+            "$RUNNER_TEMP/ipa-control-verification/IPAControl-unsigned.ipa"
