@@ -1,12 +1,7 @@
 # Aplikace
 
-Zdrojové kódy aplikací spravované spolu s IPA Builderem.
+V tomto adresáři momentálně nejsou žádné ukázkové aplikace.
 
-| Aplikace | Umístění | Stav |
-| --- | --- | --- |
-| IPA Control | [`IPA-Control/`](IPA-Control/) | První testovací klient, bez podepisování a instalace |
+Builder zůstává samostatným workflow v `.github/workflows/build-ios.yml` a může sestavovat podporované projekty z vybraného repozitáře.
 
-Builder zůstává samostatným workflow v `.github/workflows/build-ios.yml`.
-Pro sestavení IPA Control vyber `source_repo = CaseyCZ/iOS-IPA-Builder`, `project_path = apps/IPA-Control` a `build_mode = unsigned`.
-
-Sestavení nepodepsaného IPA nespotřebuje žádný provisioning profil ani App ID. Test skutečné instalace bude zvláštním, vědomě spuštěným krokem.
+Sestavení nepodepsaného IPA nespotřebuje žádný provisioning profil ani App ID. Podpis a instalace na zařízení jsou samostatné kroky.
