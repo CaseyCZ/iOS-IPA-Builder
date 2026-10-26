@@ -78,6 +78,7 @@
         <a href="#modes" data-i18n="navModes">Build modes</a>
         <a href="#how" data-i18n="navHow">How it works</a>
         <a href="#support" data-i18n="navSupport">Supported</a>
+        <a href="ipa-control.html">IPA Control</a>
       </nav>
       <div class="nav-actions">
         <a class="compact-btn" href="https://github.com/CaseyCZ/iOS-IPA-Builder" target="_blank" rel="noopener">GitHub</a>
@@ -113,6 +114,7 @@
       <div class="hero-actions">
         <a class="btn primary" href="https://github.com/CaseyCZ/iOS-IPA-Builder/actions/workflows/build-ios.yml" target="_blank" rel="noopener" data-i18n="runBuilder">Run iOS IPA Builder</a>
         <a class="btn secondary" href="https://github.com/CaseyCZ/iOS-IPA-Builder#readme" target="_blank" rel="noopener" data-i18n="setup">View setup</a>
+        <a class="btn secondary" href="ipa-control.html">IPA Control</a>
       </div>
 
       <div class="builder-preview">
@@ -169,6 +171,22 @@
       <div class="notice"><strong data-i18n="freeTitle">Simple by design.</strong> <span data-i18n="freeText">Standard GitHub-hosted runners only, no Actions artifact storage, and no automatic App Store Connect upload.</span></div>
     </section>
 
+    <section id="ipa-control" class="section">
+      <div class="section-head">
+        <span class="eyebrow" data-i18n="ipaStatus">In development · version 0.1.0</span>
+        <h2 style="margin-top:12px">IPA Control</h2>
+        <p data-i18n="ipaIntro">A companion iPhone app for IPA sources, your own server, and future app refreshing. Signing and installation are not available yet.</p>
+      </div>
+      <div class="grid">
+        <article class="card"><div class="card-icon">JSON</div><h3 data-i18n="ipaSourcesTitle">AltStore sources</h3><p data-i18n="ipaSourcesText">Add compatible JSON catalogs and browse their apps.</p></article>
+        <article class="card"><div class="card-icon">↻</div><h3 data-i18n="ipaRefreshTitle">Future refreshing</h3><p data-i18n="ipaRefreshText">We are testing a self-hosted signing and device connection workflow.</p></article>
+      </div>
+      <div class="hero-actions">
+        <a class="btn primary" href="ipa-control.html" data-i18n="ipaOpen">Open IPA Control page</a>
+        <a class="btn secondary" href="https://github.com/CaseyCZ/iOS-IPA-Builder/tree/Master/apps/IPA-Control" target="_blank" rel="noopener" data-i18n="ipaCode">View source code</a>
+      </div>
+    </section>
+
     <section class="section">
       <div class="section-head">
         <h2 data-i18n="privateTitle">Private project?</h2>
@@ -202,6 +220,15 @@
       es:{brandSub:'Herramienta de compilación con GitHub Actions',navModes:'Modos de compilación',navHow:'Cómo funciona',navSupport:'Compatible',run:'Ejecutar Builder',settings:'Ajustes',appearance:'APARIENCIA',dark:'Oscuro',light:'Claro',language:'IDIOMA',report:'Reportar un problema',eyebrow:'GitHub Actions · macOS · Xcode',heroTitle:'Crea una IPA de iOS sin un Mac local.',heroText:'Crea IPA limpias sin firmar o IPA firmadas para App Store/TestFlight directamente con GitHub Actions.',runBuilder:'Ejecutar iOS IPA Builder',setup:'Ver configuración',previewTitle:'Vista previa del workflow',sourceRepo:'Repositorio de origen',projectType:'Tipo de proyecto',autoDetect:'Detección automática',buildMode:'Modo de compilación',unsigned:'IPA sin firmar',output:'Salida',publicPrivate:'Release público o privado',modesTitle:'Dos modos de compilación',modesText:'El mismo workflow para sideloading o una compilación normal de distribución de Apple.',unsignedText:'Crea una compilación Release limpia sin firma y empaqueta la app como una IPA estándar.',appStore:'App Store / TestFlight',appStoreText:'Usa tu certificado Apple Distribution y perfil de aprovisionamiento para crear una IPA firmada. La subida a Apple sigue siendo manual.',howTitle:'Cómo funciona',howText:'El builder es un workflow de GitHub, no una app de escritorio. GitHub inicia un runner macOS y compila remotamente.',step1Title:'Seleccionar origen',step1Text:'Elige repositorio, rama o etiqueta.',step2Title:'Detectar proyecto',step2Text:'Xcode, Capacitor, Flutter o React Native.',step3Title:'Compilar en macOS',step3Text:'Xcode crea la IPA sin firmar o firmada.',step4Title:'Guardar release',step4Text:'Guarda la IPA en un GitHub Release público o privado.',supportedTitle:'Proyectos compatibles',supportedText:'La detección automática es la opción predeterminada, con selección manual cuando sea necesario.',freeTitle:'Simple a propósito.',freeText:'Solo runners estándar de GitHub, sin almacenamiento de artefactos de Actions y sin subida automática a App Store Connect.',privateTitle:'¿Proyecto privado?',privateText:'Añade una vez dos secretos de GitHub y el builder podrá trabajar con tu repositorio privado.',sourceTokenText:'Permite al builder leer tu proyecto privado. Los proyectos públicos no lo necesitan.',outputTokenText:'Permite al builder guardar la IPA terminada en la GitHub Release seleccionada.',secretPath:'Añádelos una vez en el repositorio del builder en Settings → Secrets and variables → Actions.',footer:'iOS IPA Builder · Herramienta open-source para GitHub Actions'},
       fr:{brandSub:'Outil de build GitHub Actions',navModes:'Modes de build',navHow:'Fonctionnement',navSupport:'Pris en charge',run:'Lancer le builder',settings:'Réglages',appearance:'APPARENCE',dark:'Sombre',light:'Clair',language:'LANGUE',report:'Signaler un problème',eyebrow:'GitHub Actions · macOS · Xcode',heroTitle:'Créez une IPA iOS sans Mac local.',heroText:'Créez des IPA non signées propres ou des IPA signées prêtes pour App Store/TestFlight directement avec GitHub Actions.',runBuilder:'Lancer iOS IPA Builder',setup:'Voir la configuration',previewTitle:'Aperçu du workflow',sourceRepo:'Dépôt source',projectType:'Type de projet',autoDetect:'Détection automatique',buildMode:'Mode de build',unsigned:'IPA non signée',output:'Sortie',publicPrivate:'Release publique ou privée',modesTitle:'Deux modes de build',modesText:'Le même workflow pour le sideloading ou un build de distribution Apple classique.',unsignedText:'Crée un build Release propre sans signature puis empaquette l’app en IPA standard.',appStore:'App Store / TestFlight',appStoreText:'Utilise votre certificat Apple Distribution et votre profil de provisioning pour créer une IPA signée. L’envoi vers Apple reste manuel.',howTitle:'Fonctionnement',howText:'Le builder est un workflow GitHub, pas une application de bureau. GitHub démarre un runner macOS et effectue le build à distance.',step1Title:'Choisir la source',step1Text:'Choisissez le dépôt, la branche ou le tag.',step2Title:'Détecter le projet',step2Text:'Xcode, Capacitor, Flutter ou React Native.',step3Title:'Builder sur macOS',step3Text:'Xcode crée l’IPA non signée ou signée.',step4Title:'Livrer la release',step4Text:'Enregistrez l’IPA dans une GitHub Release publique ou privée.',supportedTitle:'Projets pris en charge',supportedText:'La détection automatique est utilisée par défaut, avec sélection manuelle si nécessaire.',freeTitle:'Simple par conception.',freeText:'Uniquement des runners GitHub standard, sans stockage Actions Artifact et sans envoi automatique vers App Store Connect.',privateTitle:'Projet privé ?',privateText:'Ajoutez une fois deux secrets GitHub et le builder pourra utiliser votre dépôt privé.',sourceTokenText:'Permet au builder de lire votre projet privé. Les projets publics n’en ont pas besoin.',outputTokenText:'Permet au builder d’enregistrer l’IPA terminée dans la GitHub Release choisie.',secretPath:'Ajoutez-les une fois dans le dépôt du builder via Settings → Secrets and variables → Actions.',footer:'iOS IPA Builder · Outil open-source basé sur GitHub Actions'}
     };
+
+    const IPA_COPY={
+      en:{ipaStatus:'In development · version 0.1.0',ipaIntro:'A companion iPhone app for IPA sources, your own server, and future app refreshing. Signing and installation are not available yet.',ipaSourcesTitle:'AltStore sources',ipaSourcesText:'Add compatible JSON catalogs and browse their apps.',ipaRefreshTitle:'Future refreshing',ipaRefreshText:'We are testing a self-hosted signing and device connection workflow.',ipaOpen:'Open IPA Control page',ipaCode:'View source code'},
+      cs:{ipaStatus:'Ve vývoji · verze 0.1.0',ipaIntro:'Doprovodná aplikace pro iPhone: zdroje IPA, vlastní server a budoucí obnovení aplikací. Podepisování a instalace zatím nejsou dostupné.',ipaSourcesTitle:'AltStore zdroje',ipaSourcesText:'Přidej kompatibilní JSON katalogy a procházej aplikace.',ipaRefreshTitle:'Budoucí obnovování',ipaRefreshText:'Prověřujeme podepisování na vlastním serveru a komunikaci s iPhonem.',ipaOpen:'Otevřít stránku IPA Control',ipaCode:'Zobrazit zdrojový kód'},
+      de:{ipaStatus:'In Entwicklung · Version 0.1.0',ipaIntro:'Eine iPhone-App für IPA-Quellen, den eigenen Server und die spätere App-Erneuerung. Signieren und Installieren sind noch nicht verfügbar.',ipaSourcesTitle:'AltStore-Quellen',ipaSourcesText:'Kompatible JSON-Kataloge hinzufügen und Apps durchsuchen.',ipaRefreshTitle:'Spätere Erneuerung',ipaRefreshText:'Wir testen das Signieren auf einem eigenen Server und die Geräteverbindung.',ipaOpen:'IPA Control öffnen',ipaCode:'Quellcode ansehen'},
+      es:{ipaStatus:'En desarrollo · versión 0.1.0',ipaIntro:'Una app para iPhone con fuentes IPA, servidor propio y futura renovación de apps. La firma y la instalación aún no están disponibles.',ipaSourcesTitle:'Fuentes de AltStore',ipaSourcesText:'Añade catálogos JSON compatibles y explora apps.',ipaRefreshTitle:'Renovación futura',ipaRefreshText:'Estamos probando la firma en un servidor propio y la conexión al dispositivo.',ipaOpen:'Abrir IPA Control',ipaCode:'Ver código fuente'},
+      fr:{ipaStatus:'En développement · version 0.1.0',ipaIntro:'Une app iPhone pour les sources IPA, votre serveur et le futur renouvellement des apps. La signature et l’installation ne sont pas encore disponibles.',ipaSourcesTitle:'Sources AltStore',ipaSourcesText:'Ajoutez des catalogues JSON compatibles et parcourez les apps.',ipaRefreshTitle:'Renouvellement futur',ipaRefreshText:'Nous testons la signature sur un serveur personnel et la connexion à l’appareil.',ipaOpen:'Ouvrir IPA Control',ipaCode:'Voir le code source'}
+    };
+    Object.keys(IPA_COPY).forEach(lang=>Object.assign(COPY[lang],IPA_COPY[lang]));
 
     const root=document.documentElement;
     const settingsButton=document.getElementById('settingsButton');
