@@ -396,6 +396,25 @@ case "$PROJECT_TYPE" in
     build_flutter_app "$ROOT"
     ;;
   xcode)
+    # A source-owned native build may need to materialize an XcodeGen project
+    # and compile FFI libraries first. This hook receives no Apple secrets.
+    if [[ -f "$ROOT/ipa-builder-prebuild.sh" ]]; then
+      prebuild_root_file="$RUNNER_TEMP/ipa-builder-project-root"
+      export IPA_BUILDER_PROJECT_ROOT_FILE="$prebuild_root_file"
+      bash "$ROOT/ipa-builder-prebuild.sh"
+      if [[ ! -s "$prebuild_root_file" ]]; then
+        echo "::error::Native prebuild did not return an Xcode project root." >&2
+        exit 65
+      fi
+      IFS= read -r prepared_root < "$prebuild_root_file"
+      source_project_root="$(cd "$ROOT" && pwd -P)"
+      prepared_project_root="$(cd "$prepared_root" && pwd -P)"
+      if [[ "$prepared_project_root" != "$source_project_root/"* ]]; then
+        echo "::error::Native prebuild returned a project outside the selected source." >&2
+        exit 66
+      fi
+      ROOT="$prepared_project_root"
+    fi
     prepare_xcodegen_if_needed "$ROOT"
     install_pods_if_needed "$ROOT" "$ROOT"
     build_xcode_app "$ROOT"

@@ -52,6 +52,25 @@ Source inspection currently recognizes and can build unsigned IPA packages for:
 
 `Auto` is the recommended default. It detects common project markers such as `capacitor.config.*`, `pubspec.yaml`, React Native dependencies and Xcode projects/workspaces. A project type can still be selected manually when needed.
 
+### Native source prebuild hook (unsigned Xcode only)
+
+Some native projects generate an Xcode project or compile a Rust/C library before
+Xcode can build. In a **trusted source repository**, put a file named
+`ipa-builder-prebuild.sh` in the selected `project_path` folder.
+
+- `Auto` detects the hook as a native Xcode project even without `.xcodeproj`.
+- The macOS unsigned-build job runs the hook **before** XcodeGen/Xcode.
+- The hook receives `IPA_BUILDER_PROJECT_ROOT_FILE`, a temporary output file.
+  It must write one absolute path to the prepared Xcode project directory.
+- That directory must resolve **inside the selected source folder**; paths
+  escaping the source are rejected. The hook receives no Apple signing secrets.
+- No hook runs in the read-only source-inspection job or in the App Store
+  signing job. Run hooks only from code you trust.
+
+For example, choose `project_type=auto`, `build_mode=unsigned`, and a
+`project_path` containing the prebuild script. Use `scheme` when the generated
+Xcode project has more than one scheme.
+
 ## Security model
 
 This repository is public and contains only build infrastructure.
