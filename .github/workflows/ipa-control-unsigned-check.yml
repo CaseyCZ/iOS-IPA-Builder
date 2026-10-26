@@ -1,0 +1,58 @@
+name: IPA Control unsigned compile check
+
+on:
+  push:
+    branches:
+      - test/ipa-control-unsigned-build
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Compile IPA Control without signing
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify Xcode and compile for iPhone
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          if ! xcodebuild \
+            -project apps/IPA-Control/IPAControl.xcodeproj \
+            -scheme IPAControl \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/IPAControlDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            build > "$RUNNER_TEMP/ipa-control-build.log" 2>&1; then
+            echo 'Unsigned build failed. Compiler diagnostics:'
+            grep -E 'error:|BUILD FAILED|The following build commands failed' "$RUNNER_TEMP/ipa-control-build.log" | tail -n 90 || true
+            exit 1
+          fi
+          echo 'BUILD SUCCEEDED (unsigned, no Apple credentials)'
+
+      - name: Verify temporary unsigned IPA structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/IPAControlDerivedData/Build/Products/Release-iphoneos/IPAControl.app"
+          test -d "$app"
+          test -f "$app/Info.plist"
+          test -f "$app/IPAControl"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Info.plist"
+          mkdir -p "$RUNNER_TEMP/ipa-control-verification/Payload"
+          cp -R "$app" "$RUNNER_TEMP/ipa-control-verification/Payload/IPAControl.app"
+          cd "$RUNNER_TEMP/ipa-control-verification"
+          /usr/bin/zip -q -r IPAControl-unsigned.ipa Payload
+          /usr/bin/unzip -t IPAControl-unsigned.ipa | tail -n 1
+          /usr/bin/shasum -a 256 IPAControl-unsigned.ipa
+          echo 'IPA was generated only on this temporary runner. No upload, signing, or installation.'
